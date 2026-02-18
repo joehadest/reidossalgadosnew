@@ -1,0 +1,131 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Store {
+  id        String   @id @default("default-store")
+  name      String
+  address   String
+  city      String
+  state     String
+  phone     String
+  whatsapp  String
+  instagram String
+  about     String
+  pixKey    String   @map("pix_key")
+
+  hours        StoreHour[]
+  deliveryFees DeliveryFee[]
+  paymentMethods PaymentMethod[]
+}
+
+model StoreHour {
+  id     String @id @default(cuid())
+  storeId String @map("store_id")
+  day    String
+  open   String
+  close  String
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, day])
+  @@map("store_hours")
+}
+
+model DeliveryFee {
+  id          String  @id @default(cuid())
+  storeId     String  @map("store_id")
+  neighborhood String
+  fee         Float
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, neighborhood])
+  @@map("delivery_fees")
+}
+
+model PaymentMethod {
+  id      String @id @default(cuid())
+  storeId String @map("store_id")
+  name    String
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, name])
+  @@map("payment_methods")
+}
+
+model Category {
+  id        String  @id
+  name      String
+  icon      String
+  sortOrder Int     @default(0) @map("sort_order")
+
+  menuItems MenuItem[]
+}
+
+model MenuItem {
+  id          String   @id @default(cuid())
+  name        String
+  description String
+  price       Float
+  image       String
+  categoryId  String   @map("category_id")
+  available   Boolean  @default(true)
+
+  category Category         @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  variants MenuItemVariant[]
+
+  @@map("MenuItem")
+}
+
+model MenuItemVariant {
+  id         String  @id @default(cuid())
+  menuItemId String  @map("menu_item_id")
+  name       String
+  price      Float
+  available  Boolean @default(true)
+
+  menuItem MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+
+  @@map("menu_item_variants")
+}
+
+model Order {
+  id            String   @id @default(cuid())
+  name          String
+  phone         String
+  address       String
+  neighborhood  String
+  complement    String?
+  paymentMethod String  @map("payment_method")
+  changeFor     String?  @map("change_for")
+  subtotal      Float
+  deliveryFee   Float    @map("delivery_fee")
+  total         Float
+  status        String   @default("recebido")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  items OrderItem[]
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id          String  @id @default(cuid())
+  orderId     String  @map("order_id")
+  itemId      String  @map("item_id")
+  variantId   String? @map("variant_id")
+  name        String
+  variantName String? @map("variant_name")
+  price       Float
+  quantity    Int
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("order_items")
+}
