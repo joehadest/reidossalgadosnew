@@ -14,6 +14,7 @@ export interface StoreHours {
   day: string
   open: string
   close: string
+  closed?: boolean
 }
 
 export interface DeliveryFee {

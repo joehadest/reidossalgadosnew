@@ -60,8 +60,8 @@ export function StoreInfoModal({ isOpen, onClose }: StoreInfoModalProps) {
                       }`}
                     >
                       <span className="text-muted-foreground">{h.day}</span>
-                      <span className="font-medium">
-                        {h.open} - {h.close}
+                      <span className={`font-medium ${h.closed ? "text-destructive" : ""}`}>
+                        {h.closed ? "Fechado" : `${h.open} - ${h.close}`}
                       </span>
                     </div>
                   ))}

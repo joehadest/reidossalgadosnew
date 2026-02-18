@@ -2,6 +2,7 @@
 
 import Image from "next/image"
 import { motion } from "framer-motion"
+import Link from "next/link"
 import {
   LayoutDashboard,
   UtensilsCrossed,
@@ -101,6 +102,13 @@ export function AdminSidebar({ activeSection, onSectionChange, onLogout, mobileO
 
       {/* Footer */}
       <div className="p-3 border-t border-border flex flex-col gap-1">
+        <Link
+          href="/admin/balcao"
+          className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-primary hover:bg-primary/10 transition-colors"
+        >
+          <Store className="h-4 w-4" />
+          Balcão
+        </Link>
         <a
           href="/"
           className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"

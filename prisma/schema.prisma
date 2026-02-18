@@ -24,11 +24,12 @@ model Store {
 }
 
 model StoreHour {
-  id     String @id @default(cuid())
+  id     String  @id @default(cuid())
   storeId String @map("store_id")
   day    String
   open   String
   close  String
+  closed Boolean @default(false)
 
   store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
 

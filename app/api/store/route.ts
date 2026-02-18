@@ -63,11 +63,12 @@ export async function PATCH(request: NextRequest) {
       await prisma.storeHour.deleteMany({ where: { storeId: store.id } })
       if (hours.length > 0) {
         await prisma.storeHour.createMany({
-          data: hours.map((h: { day: string; open: string; close: string }) => ({
+          data: hours.map((h: { day: string; open: string; close: string; closed?: boolean }) => ({
             storeId: store.id,
             day: h.day,
             open: h.open,
             close: h.close,
+            closed: h.closed ?? false,
           })),
         })
       }

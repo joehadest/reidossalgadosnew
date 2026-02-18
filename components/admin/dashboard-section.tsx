@@ -46,7 +46,7 @@ export function DashboardSection({ onNavigate }: DashboardSectionProps) {
   const schedule = store.hours.find((h) => h.day === today)
 
   const isOpen = (() => {
-    if (!schedule) return false
+    if (!schedule || schedule.closed) return false
     const [openH, openM] = schedule.open.split(":").map(Number)
     const [closeH, closeM] = schedule.close.split(":").map(Number)
     const currentMinutes = now.getHours() * 60 + now.getMinutes()
@@ -77,7 +77,7 @@ export function DashboardSection({ onNavigate }: DashboardSectionProps) {
           <div>
             <h3 className="font-semibold text-sm">Status da Loja</h3>
             <p className="text-xs text-muted-foreground">
-              {today} - {schedule ? `${schedule.open} ate ${schedule.close}` : "Sem horario"}
+              {today} - {schedule ? (schedule.closed ? "Fechado" : `${schedule.open} ate ${schedule.close}`) : "Sem horario"}
             </p>
           </div>
         </div>
