@@ -6,6 +6,7 @@ import { X, Minus, Plus, Trash2, ShoppingBag, ArrowRight } from "lucide-react"
 import Image from "next/image"
 import { useCart } from "@/lib/cart-context"
 import { useAdmin } from "@/lib/admin-context"
+import { getStoreStatus } from "@/lib/store-status"
 
 interface CartDrawerProps {
   isOpen: boolean
@@ -16,6 +17,7 @@ interface CartDrawerProps {
 export function CartDrawer({ isOpen, onClose, onCheckout }: CartDrawerProps) {
   const { items, updateQuantity, removeItem, clearCart, totalPrice, totalItems } = useCart()
   const { store } = useAdmin()
+  const isStoreOpen = getStoreStatus(store.hours)
   const [selectedNeighborhood, setSelectedNeighborhood] = useState("")
 
   const deliveryFee =
@@ -144,8 +146,14 @@ export function CartDrawer({ isOpen, onClose, onCheckout }: CartDrawerProps) {
             {/* Footer */}
             {items.length > 0 && (
               <div className="border-t border-border p-4 flex flex-col gap-4">
+                {!isStoreOpen && (
+                  <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-center">
+                    <p className="text-sm font-medium text-amber-600 dark:text-amber-400">Estamos fechados no momento</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Pedidos temporariamente indisponiveis</p>
+                  </div>
+                )}
                 {/* Delivery Neighborhood */}
-                <div>
+                {isStoreOpen && <div>
                   <label className="text-xs text-muted-foreground mb-1.5 block">Bairro para entrega</label>
                   <select
                     value={selectedNeighborhood}
@@ -161,7 +169,7 @@ export function CartDrawer({ isOpen, onClose, onCheckout }: CartDrawerProps) {
                     ))}
                     <option value="retirada">Retirar no local</option>
                   </select>
-                </div>
+                </div>}
 
                 {/* Totals */}
                 <div className="flex flex-col gap-1.5 text-sm">
@@ -188,8 +196,9 @@ export function CartDrawer({ isOpen, onClose, onCheckout }: CartDrawerProps) {
                 </div>
 
                 <button
-                  onClick={onCheckout}
-                  className="flex items-center justify-center gap-2 w-full rounded-xl bg-primary py-3 text-sm font-bold text-primary-foreground hover:bg-primary/90 transition-colors"
+                  onClick={() => isStoreOpen && onCheckout()}
+                  disabled={!isStoreOpen}
+                  className="flex items-center justify-center gap-2 w-full rounded-xl bg-primary py-3 text-sm font-bold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Finalizar Pedido
                   <ArrowRight className="h-4 w-4" />

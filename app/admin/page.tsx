@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
+import { useSearchParams, useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
 import { toast } from "sonner"
 import { AdminLogin } from "@/components/admin/admin-login"
@@ -14,6 +15,10 @@ import { HoursSection } from "@/components/admin/hours-section"
 import { PaymentsSection } from "@/components/admin/payments-section"
 import { OrdersSection } from "@/components/admin/orders-section"
 import { playNotificationSound } from "@/lib/notification-sound"
+
+const VALID_SECTIONS: AdminSection[] = [
+  "dashboard", "menu", "categories", "store-info", "delivery", "hours", "payments", "orders"
+]
 
 const sectionLabels: Record<AdminSection, string> = {
   dashboard: "Dashboard",
@@ -29,8 +34,14 @@ const sectionLabels: Record<AdminSection, string> = {
 const POLL_INTERVAL_MS = 20000
 
 export default function AdminPage() {
+  const searchParams = useSearchParams()
+  const router = useRouter()
   const [authenticated, setAuthenticated] = useState(false)
-  const [activeSection, setActiveSection] = useState<AdminSection>("dashboard")
+  const [activeSection, setActiveSection] = useState<AdminSection>(() => {
+    if (typeof window === "undefined") return "dashboard"
+    const s = new URLSearchParams(window.location.search).get("section")
+    return (s && VALID_SECTIONS.includes(s as AdminSection)) ? s as AdminSection : "dashboard"
+  })
   const [mobileOpen, setMobileOpen] = useState(false)
   const [hydrated, setHydrated] = useState(false)
   const [ordersBadge, setOrdersBadge] = useState(0)
@@ -41,6 +52,20 @@ export default function AdminPage() {
     if (auth === "true") setAuthenticated(true)
     setHydrated(true)
   }, [])
+
+  useEffect(() => {
+    const section = searchParams.get("section")
+    if (section && VALID_SECTIONS.includes(section as AdminSection)) {
+      setActiveSection(section as AdminSection)
+    }
+  }, [searchParams])
+
+  function handleSectionChange(section: AdminSection) {
+    setActiveSection(section)
+    const params = new URLSearchParams(searchParams.toString())
+    params.set("section", section)
+    router.replace(`/admin?${params.toString()}`, { scroll: false })
+  }
 
   useEffect(() => {
     if (!authenticated) return
@@ -132,7 +157,7 @@ export default function AdminPage() {
     <div className="min-h-screen bg-background flex">
       <AdminSidebar
         activeSection={activeSection}
-        onSectionChange={setActiveSection}
+        onSectionChange={handleSectionChange}
         onLogout={handleLogout}
         mobileOpen={mobileOpen}
         onMobileClose={() => setMobileOpen(false)}
@@ -155,7 +180,7 @@ export default function AdminPage() {
               transition={{ duration: 0.2 }}
             >
               {activeSection === "dashboard" && (
-                <DashboardSection onNavigate={setActiveSection} />
+                <DashboardSection onNavigate={handleSectionChange} />
               )}
               {activeSection === "menu" && <MenuManagement />}
               {activeSection === "categories" && <CategoriesSection />}

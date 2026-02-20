@@ -6,6 +6,7 @@ import { Plus, Minus, Flame, Cookie, CupSoda, Package, Search, UtensilsCrossed }
 import Image from "next/image"
 import { useAdmin } from "@/lib/admin-context"
 import { useCart } from "@/lib/cart-context"
+import { getStoreStatus } from "@/lib/store-status"
 import { VariantModal } from "@/components/variant-modal"
 import type { MenuItem, MenuItemVariant } from "@/lib/store-data"
 
@@ -18,7 +19,8 @@ const iconMap: Record<string, React.ReactNode> = {
 }
 
 export function MenuSection() {
-  const { categories, menuItems } = useAdmin()
+  const { categories, menuItems, store } = useAdmin()
+  const isOpen = getStoreStatus(store.hours)
   const [activeCategory, setActiveCategory] = useState(categories[0]?.id || "")
   const [searchQuery, setSearchQuery] = useState("")
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -87,11 +89,19 @@ export function MenuSection() {
           </div>
         )}
 
+        {/* Closed overlay */}
+        {!isOpen && (
+          <div className="mt-8 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-6 text-center">
+            <p className="font-semibold text-amber-600 dark:text-amber-400">Estamos fechados no momento</p>
+            <p className="text-sm text-muted-foreground mt-1">Pedidos temporariamente indisponiveis. Volte em breve!</p>
+          </div>
+        )}
+
         {/* Menu Grid */}
-        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className={`mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 ${!isOpen ? "pointer-events-none opacity-60" : ""}`}>
           <AnimatePresence mode="popLayout">
             {filteredItems.map((item, index) => (
-              <MenuItemCard key={item.id} item={item} index={index} />
+              <MenuItemCard key={item.id} item={item} index={index} disabled={!isOpen} />
             ))}
           </AnimatePresence>
         </div>
@@ -106,7 +116,7 @@ export function MenuSection() {
   )
 }
 
-function MenuItemCard({ item, index }: { item: MenuItem; index: number }) {
+function MenuItemCard({ item, index, disabled }: { item: MenuItem; index: number; disabled?: boolean }) {
   const { items, addItem, updateQuantity } = useCart()
   const [variantModalOpen, setVariantModalOpen] = useState(false)
 
@@ -117,6 +127,7 @@ function MenuItemCard({ item, index }: { item: MenuItem; index: number }) {
   const totalQty = cartItemsForThis.reduce((s, i) => s + i.quantity, 0)
 
   const handleAdd = () => {
+    if (disabled) return
     if (hasVariants && availableVariants.length > 0) {
       setVariantModalOpen(true)
     } else {
@@ -125,6 +136,7 @@ function MenuItemCard({ item, index }: { item: MenuItem; index: number }) {
   }
 
   const handleSelectVariant = (variant: MenuItemVariant) => {
+    if (disabled) return
     addItem(item, variant)
   }
 
@@ -173,16 +185,18 @@ function MenuItemCard({ item, index }: { item: MenuItem; index: number }) {
                   className="flex items-center gap-2 rounded-lg bg-secondary px-1"
                 >
                   <button
-                    onClick={() => updateQuantity(singleCartItem.id, singleCartItem.quantity - 1)}
-                    className="p-1.5 rounded-md hover:bg-primary/20 transition-colors"
+                    onClick={() => !disabled && updateQuantity(singleCartItem.id, singleCartItem.quantity - 1)}
+                    disabled={disabled}
+                    className="p-1.5 rounded-md hover:bg-primary/20 transition-colors disabled:opacity-50"
                     aria-label={`Remover ${item.name}`}
                   >
                     <Minus className="h-3.5 w-3.5" />
                   </button>
                   <span className="text-sm font-semibold min-w-[20px] text-center">{singleCartItem.quantity}</span>
                   <button
-                    onClick={() => addItem(item)}
-                    className="p-1.5 rounded-md hover:bg-primary/20 transition-colors"
+                    onClick={() => !disabled && addItem(item)}
+                    disabled={disabled}
+                    className="p-1.5 rounded-md hover:bg-primary/20 transition-colors disabled:opacity-50"
                     aria-label={`Adicionar mais ${item.name}`}
                   >
                     <Plus className="h-3.5 w-3.5" />
@@ -191,7 +205,8 @@ function MenuItemCard({ item, index }: { item: MenuItem; index: number }) {
               ) : (
                 <button
                   onClick={handleAdd}
-                  className="flex items-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
+                  disabled={disabled}
+                  className="flex items-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   aria-label={`Adicionar ${item.name}`}
                 >
                   <Plus className="h-3.5 w-3.5" />

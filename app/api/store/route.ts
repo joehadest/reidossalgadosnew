@@ -60,16 +60,18 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (hours !== undefined) {
+      const hoursList = Array.isArray(hours) ? hours : []
       await prisma.storeHour.deleteMany({ where: { storeId: store.id } })
-      if (hours.length > 0) {
-        await prisma.storeHour.createMany({
-          data: hours.map((h: { day: string; open: string; close: string; closed?: boolean }) => ({
+      for (const h of hoursList as { day: string; open: string; close: string; closed?: boolean }[]) {
+        if (!h?.day || !h?.open || !h?.close) continue
+        await prisma.storeHour.create({
+          data: {
             storeId: store.id,
-            day: h.day,
-            open: h.open,
-            close: h.close,
-            closed: h.closed ?? false,
-          })),
+            day: String(h.day),
+            open: String(h.open),
+            close: String(h.close),
+            closed: Boolean(h.closed),
+          },
         })
       }
     }
@@ -92,8 +94,11 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error("API /api/store error:", error)
+    const err = error instanceof Error ? error : new Error(String(error))
+    const message = err.message
+    const stack = process.env.NODE_ENV === "development" ? err.stack : undefined
     return NextResponse.json(
-      { error: "Failed to update store" },
+      { error: message, ...(stack && { stack }) },
       { status: 500 }
     )
   }

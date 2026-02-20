@@ -3,15 +3,30 @@
 import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import { Save, CheckCircle2, Clock } from "lucide-react"
+import { toast } from "sonner"
 import { useAdmin } from "@/lib/admin-context"
+import type { StoreHours } from "@/lib/admin-context"
+
+const DEFAULT_WEEK: StoreHours[] = [
+  { day: "Segunda", open: "08:00", close: "18:00", closed: false },
+  { day: "Terca", open: "08:00", close: "18:00", closed: false },
+  { day: "Quarta", open: "08:00", close: "18:00", closed: false },
+  { day: "Quinta", open: "08:00", close: "18:00", closed: false },
+  { day: "Sexta", open: "08:00", close: "18:00", closed: false },
+  { day: "Sabado", open: "08:00", close: "18:00", closed: false },
+  { day: "Domingo", open: "08:00", close: "18:00", closed: false },
+]
 
 export function HoursSection() {
-  const { store, updateHours } = useAdmin()
-  const [hours, setHours] = useState([...store.hours])
+  const { store, refresh } = useAdmin()
+  const displayHours = store.hours.length > 0 ? store.hours : DEFAULT_WEEK
+  const [hours, setHours] = useState<StoreHours[]>([...displayHours])
   const [saved, setSaved] = useState(false)
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    setHours([...store.hours])
+    const next = store.hours.length > 0 ? store.hours : DEFAULT_WEEK
+    setHours([...next])
   }, [store.hours])
 
   function handleChange(index: number, field: "open" | "close" | "closed", value: string | boolean) {
@@ -21,12 +36,29 @@ export function HoursSection() {
   }
 
   async function handleSave() {
+    setSaving(true)
     try {
-      await updateHours(hours)
+      const payload = hours.map((h) => ({
+        day: h.day,
+        open: h.open,
+        close: h.close,
+        closed: Boolean(h.closed),
+      }))
+      const res = await fetch("/api/store/hours", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ hours: payload }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || `Erro ${res.status}`)
+      await refresh()
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
-    } catch {
+    } catch (e) {
       setSaved(false)
+      toast.error(e instanceof Error ? e.message : "Erro ao salvar horários")
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -88,7 +120,8 @@ export function HoursSection() {
       <div className="flex justify-end">
         <button
           onClick={handleSave}
-          className="flex items-center justify-center gap-2 rounded-xl bg-primary py-3 text-sm font-bold text-primary-foreground hover:bg-primary/90 transition-colors px-8"
+          disabled={saving}
+          className="flex items-center justify-center gap-2 rounded-xl bg-primary py-3 text-sm font-bold text-primary-foreground hover:bg-primary/90 transition-colors px-8 disabled:opacity-70 disabled:cursor-not-allowed"
         >
           {saved ? (
             <>
