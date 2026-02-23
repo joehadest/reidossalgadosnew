@@ -17,6 +17,7 @@ model Store {
   instagram String
   about     String
   pixKey    String   @map("pix_key")
+  adminPasswordHash String? @map("admin_password_hash")
 
   hours        StoreHour[]
   deliveryFees DeliveryFee[]

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { ShoppingBag, Phone, MapPin, X, RefreshCw, Printer, Trash2 } from "lucide-react"
+import { ShoppingBag, Phone, MapPin, X, RefreshCw, Printer, Trash2, Trash } from "lucide-react"
 import { useAdmin } from "@/lib/admin-context"
 import { printOrderThermal } from "@/lib/thermal-print"
 
@@ -60,6 +60,7 @@ export function OrdersSection() {
   const [detailOrder, setDetailOrder] = useState<Order | null>(null)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [deletingAll, setDeletingAll] = useState(false)
 
   const fetchOrders = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
@@ -92,6 +93,21 @@ export function OrdersSection() {
     const id = setInterval(() => fetchOrders(true), 15000)
     return () => clearInterval(id)
   }, [fetchOrders])
+
+  async function deleteAllOrders() {
+    if (!confirm("Tem certeza que deseja apagar TODOS os pedidos? Esta ação não pode ser desfeita.")) return
+    setDeletingAll(true)
+    try {
+      const res = await fetch("/api/orders", { method: "DELETE" })
+      if (!res.ok) throw new Error("Erro ao apagar pedidos")
+      setOrders([])
+      setDetailOrder(null)
+    } catch {
+      alert("Erro ao apagar pedidos")
+    } finally {
+      setDeletingAll(false)
+    }
+  }
 
   async function deleteOrder(orderId: string) {
     if (!confirm("Tem certeza que deseja remover este pedido? Esta ação não pode ser desfeita.")) return
@@ -145,14 +161,25 @@ export function OrdersSection() {
           <h2 className="font-display text-2xl font-bold">Pedidos</h2>
           <p className="text-sm text-muted-foreground mt-1">Gerencie os pedidos recebidos</p>
         </div>
-        <button
-          onClick={fetchOrders}
-          disabled={loading}
-          className="flex items-center gap-2 rounded-xl border border-border px-4 py-2.5 text-sm font-medium hover:bg-secondary transition-colors disabled:opacity-50"
-        >
-          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-          Atualizar
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={fetchOrders}
+            disabled={loading}
+            className="flex items-center gap-2 rounded-xl border border-border px-4 py-2.5 text-sm font-medium hover:bg-secondary transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+            Atualizar
+          </button>
+          <button
+            onClick={deleteAllOrders}
+            disabled={loading || orders.length === 0 || deletingAll}
+            className="flex items-center gap-2 rounded-xl border border-destructive/50 px-4 py-2.5 text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Apagar todos os pedidos"
+          >
+            <Trash className={`h-4 w-4 ${deletingAll ? "animate-pulse" : ""}`} />
+            {deletingAll ? "Apagando..." : "Apagar todos"}
+          </button>
+        </div>
       </div>
 
       {/* Filtros */}

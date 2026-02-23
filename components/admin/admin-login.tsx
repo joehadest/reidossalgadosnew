@@ -1,11 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Image from "next/image"
 import { motion } from "framer-motion"
 import { Lock, Eye, EyeOff, AlertCircle } from "lucide-react"
-
-const ADMIN_PASSWORD = "admin123"
 
 interface AdminLoginProps {
   onLogin: () => void
@@ -15,13 +13,32 @@ export function AdminLogin({ onLogin }: AdminLoginProps) {
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState(false)
+  const [usingDefaultPassword, setUsingDefaultPassword] = useState(true)
 
-  function handleSubmit(e: React.FormEvent) {
+  useEffect(() => {
+    fetch("/api/admin/auth-status")
+      .then((res) => res.json())
+      .then((data) => setUsingDefaultPassword(data.usingDefaultPassword !== false))
+      .catch(() => setUsingDefaultPassword(true))
+  }, [])
+
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (password === ADMIN_PASSWORD) {
-      localStorage.setItem("rs-admin-auth", "true")
-      onLogin()
-    } else {
+    try {
+      const res = await fetch("/api/admin/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && data.ok) {
+        localStorage.setItem("rs-admin-auth", "true")
+        onLogin()
+      } else {
+        setError(true)
+        setTimeout(() => setError(false), 3000)
+      }
+    } catch {
       setError(true)
       setTimeout(() => setError(false), 3000)
     }
@@ -90,9 +107,11 @@ export function AdminLogin({ onLogin }: AdminLoginProps) {
             Entrar
           </button>
 
-          <p className="text-xs text-center text-muted-foreground">
-            Senha padrao: admin123
-          </p>
+          {usingDefaultPassword && (
+            <p className="text-xs text-center text-muted-foreground">
+              Senha padrao: admin123
+            </p>
+          )}
         </form>
       </motion.div>
     </div>

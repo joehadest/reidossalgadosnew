@@ -14,10 +14,11 @@ import { DeliverySection } from "@/components/admin/delivery-section"
 import { HoursSection } from "@/components/admin/hours-section"
 import { PaymentsSection } from "@/components/admin/payments-section"
 import { OrdersSection } from "@/components/admin/orders-section"
+import { PasswordSection } from "@/components/admin/password-section"
 import { playNotificationSound } from "@/lib/notification-sound"
 
 const VALID_SECTIONS: AdminSection[] = [
-  "dashboard", "menu", "categories", "store-info", "delivery", "hours", "payments", "orders"
+  "dashboard", "menu", "categories", "store-info", "delivery", "hours", "payments", "orders", "security"
 ]
 
 const sectionLabels: Record<AdminSection, string> = {
@@ -29,6 +30,7 @@ const sectionLabels: Record<AdminSection, string> = {
   hours: "Horarios",
   payments: "Pagamentos",
   orders: "Pedidos",
+  security: "Alterar senha",
 }
 
 const POLL_INTERVAL_MS = 20000
@@ -189,6 +191,7 @@ export default function AdminPage() {
               {activeSection === "hours" && <HoursSection />}
               {activeSection === "payments" && <PaymentsSection />}
               {activeSection === "orders" && <OrdersSection />}
+              {activeSection === "security" && <PasswordSection />}
             </motion.div>
           </AnimatePresence>
         </main>

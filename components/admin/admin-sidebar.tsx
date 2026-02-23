@@ -16,6 +16,7 @@ import {
   X,
   Menu,
   ShoppingBag,
+  Lock,
 } from "lucide-react"
 
 export type AdminSection =
@@ -27,6 +28,7 @@ export type AdminSection =
   | "hours"
   | "payments"
   | "orders"
+  | "security"
 
 interface AdminSidebarProps {
   activeSection: AdminSection
@@ -46,6 +48,7 @@ const navItems: { id: AdminSection; label: string; icon: React.ReactNode }[] = [
   { id: "hours", label: "Horarios", icon: <Clock className="h-4 w-4" /> },
   { id: "payments", label: "Pagamentos", icon: <CreditCard className="h-4 w-4" /> },
   { id: "orders", label: "Pedidos", icon: <ShoppingBag className="h-4 w-4" /> },
+  { id: "security", label: "Alterar senha", icon: <Lock className="h-4 w-4" /> },
 ]
 
 export function AdminSidebar({ activeSection, onSectionChange, onLogout, mobileOpen, onMobileClose, ordersBadge = 0 }: AdminSidebarProps) {

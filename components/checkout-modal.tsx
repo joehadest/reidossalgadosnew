@@ -44,6 +44,7 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
   })
   const [pixCopied, setPixCopied] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [whatsappUrl, setWhatsappUrl] = useState<string | null>(null)
 
   const deliveryFee =
     store.deliveryFees.find((f) => f.neighborhood === formData.neighborhood)?.fee || 0
@@ -103,16 +104,24 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
     const message = `*Novo Pedido - ${store.name}*\n\n*Cliente:* ${formData.name}\n*Telefone:* ${formData.phone}\n*Endereco:* ${formData.address}, ${formData.neighborhood}${formData.complement ? ` - ${formData.complement}` : ""}\n\n*Itens:*\n${itemsList}\n\n*Subtotal:* R$ ${totalPrice.toFixed(2).replace(".", ",")}\n*Entrega:* R$ ${deliveryFee.toFixed(2).replace(".", ",")}\n*Total:* R$ ${finalTotal.toFixed(2).replace(".", ",")}\n\n*Pagamento:* ${formData.paymentMethod}${formData.paymentMethod === "Dinheiro" && formData.change ? `\n*Troco para:* R$ ${formData.change}` : ""}`
 
     const encoded = encodeURIComponent(message)
-    window.open(`https://wa.me/${store.whatsapp}?text=${encoded}`, "_blank")
-
+    const url = `https://wa.me/${store.whatsapp}?text=${encoded}`
+    setWhatsappUrl(url)
     setStep("confirmation")
   }
 
+  function openWhatsApp() {
+    if (whatsappUrl) {
+      window.open(whatsappUrl, "_blank", "noopener,noreferrer")
+    }
+  }
+
   function handleClose() {
+    if (submitting) return
     if (step === "confirmation") {
       clearCart()
     }
     setStep("info")
+    setWhatsappUrl(null)
     setFormData({
       name: "",
       phone: "",
@@ -140,7 +149,8 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={handleClose}
-            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
+            className={`fixed inset-0 z-50 bg-black/60 backdrop-blur-sm ${submitting ? "pointer-events-none" : ""}`}
+            aria-hidden
           />
 
           <motion.div
@@ -164,7 +174,7 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                   {step === "confirmation" && "Pedido Enviado"}
                 </h2>
               </div>
-              <button onClick={handleClose} className="p-2 rounded-lg hover:bg-secondary transition-colors" aria-label="Fechar">
+              <button onClick={handleClose} disabled={submitting} className="p-2 rounded-lg hover:bg-secondary transition-colors disabled:opacity-50 disabled:pointer-events-none" aria-label="Fechar">
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -380,14 +390,35 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                     <CheckCircle2 className="h-10 w-10 text-primary" />
                   </motion.div>
                   <div>
-                    <h3 className="font-display text-xl font-bold">Pedido Enviado!</h3>
+                    <h3 className="font-display text-xl font-bold">Pedido salvo!</h3>
                     <p className="text-sm text-muted-foreground mt-2 max-w-xs">
-                      Seu pedido foi enviado via WhatsApp. Aguarde a confirmacao do restaurante.
+                      Clique no botão abaixo para abrir o WhatsApp e enviar o pedido ao restaurante.
                     </p>
                   </div>
+                  {whatsappUrl && (
+                    <div className="flex flex-col gap-3 w-full max-w-xs">
+                      <button
+                        onClick={openWhatsApp}
+                        type="button"
+                        className="w-full rounded-xl bg-[#25D366] py-3 text-sm font-bold text-white hover:bg-[#20BD5A] transition-colors flex items-center justify-center gap-2"
+                      >
+                        <Smartphone className="h-4 w-4" />
+                        Abrir WhatsApp e enviar pedido
+                      </button>
+                      <a
+                        href={whatsappUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-muted-foreground underline hover:text-foreground"
+                      >
+                        Se o botão não abrir, clique aqui
+                      </a>
+                    </div>
+                  )}
                   <button
                     onClick={handleClose}
-                    className="rounded-xl bg-primary px-6 py-3 text-sm font-bold text-primary-foreground hover:bg-primary/90 transition-colors"
+                    type="button"
+                    className="rounded-xl border border-border bg-card px-6 py-3 text-sm font-bold hover:bg-secondary transition-colors"
                   >
                     Fechar
                   </button>

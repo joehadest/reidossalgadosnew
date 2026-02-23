@@ -112,3 +112,16 @@ export async function GET(request: NextRequest) {
     )
   }
 }
+
+export async function DELETE() {
+  try {
+    const result = await prisma.order.deleteMany({})
+    return NextResponse.json({ deleted: result.count })
+  } catch (error) {
+    console.error("API DELETE /api/orders error:", error)
+    return NextResponse.json(
+      { error: "Failed to delete orders" },
+      { status: 500 }
+    )
+  }
+}
