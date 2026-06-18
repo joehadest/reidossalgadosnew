@@ -51,10 +51,16 @@ const navItems: { id: AdminSection; label: string; icon: React.ReactNode }[] = [
   { id: "security", label: "Alterar senha", icon: <Lock className="h-4 w-4" /> },
 ]
 
-export function AdminSidebar({ activeSection, onSectionChange, onLogout, mobileOpen, onMobileClose, ordersBadge = 0 }: AdminSidebarProps) {
+export function AdminSidebar({
+  activeSection,
+  onSectionChange,
+  onLogout,
+  mobileOpen,
+  onMobileClose,
+  ordersBadge = 0,
+}: AdminSidebarProps) {
   const sidebarContent = (
     <div className="flex flex-col h-full">
-      {/* Logo */}
       <div className="p-4 border-b border-border flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="relative h-8 w-8 rounded-lg overflow-hidden flex-shrink-0">
@@ -80,12 +86,14 @@ export function AdminSidebar({ activeSection, onSectionChange, onLogout, mobileO
         </button>
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 p-3 flex flex-col gap-1">
+      <nav className="flex-1 p-3 flex flex-col gap-1 overflow-y-auto">
         {navItems.map((item) => (
           <button
             key={item.id}
-            onClick={() => { onSectionChange(item.id); onMobileClose() }}
+            onClick={() => {
+              onSectionChange(item.id)
+              onMobileClose()
+            }}
             className={`relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${
               activeSection === item.id
                 ? "bg-primary text-primary-foreground"
@@ -103,10 +111,10 @@ export function AdminSidebar({ activeSection, onSectionChange, onLogout, mobileO
         ))}
       </nav>
 
-      {/* Footer */}
       <div className="p-3 border-t border-border flex flex-col gap-1">
         <Link
           href="/admin/balcao"
+          onClick={onMobileClose}
           className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-primary hover:bg-primary/10 transition-colors"
         >
           <Store className="h-4 w-4" />
@@ -132,12 +140,10 @@ export function AdminSidebar({ activeSection, onSectionChange, onLogout, mobileO
 
   return (
     <>
-      {/* Desktop sidebar */}
       <aside className="hidden lg:flex w-64 flex-shrink-0 flex-col border-r border-border bg-card h-screen sticky top-0">
         {sidebarContent}
       </aside>
 
-      {/* Mobile sidebar overlay */}
       {mobileOpen && (
         <>
           <motion.div
@@ -152,7 +158,7 @@ export function AdminSidebar({ activeSection, onSectionChange, onLogout, mobileO
             animate={{ x: 0 }}
             exit={{ x: "-100%" }}
             transition={{ type: "spring", damping: 30, stiffness: 300 }}
-            className="fixed left-0 top-0 bottom-0 z-50 w-64 bg-card border-r border-border lg:hidden"
+            className="fixed left-0 top-0 bottom-0 z-50 w-[min(100vw,18rem)] bg-card border-r border-border lg:hidden"
           >
             {sidebarContent}
           </motion.aside>
@@ -178,7 +184,7 @@ export function AdminMobileHeader({
       >
         <Menu className="h-5 w-5" />
       </button>
-      <h1 className="font-display font-bold text-base">{title}</h1>
+      <h1 className="font-display font-bold text-base truncate">{title}</h1>
     </div>
   )
 }

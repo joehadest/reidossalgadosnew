@@ -166,13 +166,13 @@ export default function AdminPage() {
         ordersBadge={ordersBadge}
       />
 
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 w-full">
         <AdminMobileHeader
           onMenuClick={() => setMobileOpen(true)}
           title={sectionLabels[activeSection]}
         />
 
-        <main className="p-4 sm:p-6 lg:p-8 max-w-5xl">
+        <main className="p-4 sm:p-6 lg:p-8 w-full max-w-6xl mx-auto">
           <AnimatePresence mode="wait">
             <motion.div
               key={activeSection}

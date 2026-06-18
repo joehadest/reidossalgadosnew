@@ -6,27 +6,17 @@ import { Save, CheckCircle2, Clock } from "lucide-react"
 import { toast } from "sonner"
 import { useAdmin } from "@/lib/admin-context"
 import type { StoreHours } from "@/lib/admin-context"
-
-const DEFAULT_WEEK: StoreHours[] = [
-  { day: "Segunda", open: "08:00", close: "18:00", closed: false },
-  { day: "Terca", open: "08:00", close: "18:00", closed: false },
-  { day: "Quarta", open: "08:00", close: "18:00", closed: false },
-  { day: "Quinta", open: "08:00", close: "18:00", closed: false },
-  { day: "Sexta", open: "08:00", close: "18:00", closed: false },
-  { day: "Sabado", open: "08:00", close: "18:00", closed: false },
-  { day: "Domingo", open: "08:00", close: "18:00", closed: false },
-]
+import { normalizeStoreHours } from "@/lib/store-hours"
 
 export function HoursSection() {
   const { store, refresh } = useAdmin()
-  const displayHours = store.hours.length > 0 ? store.hours : DEFAULT_WEEK
+  const displayHours = normalizeStoreHours(store.hours)
   const [hours, setHours] = useState<StoreHours[]>([...displayHours])
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    const next = store.hours.length > 0 ? store.hours : DEFAULT_WEEK
-    setHours([...next])
+    setHours([...normalizeStoreHours(store.hours)])
   }, [store.hours])
 
   function handleChange(index: number, field: "open" | "close" | "closed", value: string | boolean) {
@@ -77,15 +67,15 @@ export function HoursSection() {
         {hours.map((h, index) => (
           <div
             key={h.day}
-            className={`flex items-center gap-4 px-4 py-4 sm:px-6 ${
+            className={`flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:gap-4 sm:px-6 ${
               index < hours.length - 1 ? "border-b border-border" : ""
             } ${h.closed ? "bg-muted/30" : ""}`}
           >
-            <div className="flex items-center gap-3 w-28 sm:w-32 flex-shrink-0">
-              <Clock className="h-4 w-4 text-primary hidden sm:block" />
+            <div className="flex items-center gap-3 w-full sm:w-28 sm:flex-shrink-0">
+              <Clock className="h-4 w-4 text-primary" />
               <span className="text-sm font-medium">{h.day}</span>
             </div>
-            <div className="flex items-center gap-2 flex-1 flex-wrap">
+            <div className="flex flex-col gap-3 w-full sm:flex-row sm:items-center sm:flex-1 sm:flex-wrap">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
@@ -93,24 +83,24 @@ export function HoursSection() {
                   onChange={(e) => handleChange(index, "closed", e.target.checked)}
                   className="rounded border-border"
                 />
-                <span className="text-sm text-muted-foreground whitespace-nowrap">Fechar dia</span>
+                <span className="text-sm text-muted-foreground">Fechar dia</span>
               </label>
               {!h.closed && (
-                <>
+                <div className="flex items-center gap-2 w-full sm:flex-1 sm:min-w-0">
                   <input
                     type="time"
                     value={h.open}
                     onChange={(e) => handleChange(index, "open", e.target.value)}
-                    className="flex-1 min-w-[100px] rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    className="flex-1 min-w-0 rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                   />
-                  <span className="text-muted-foreground text-xs">ate</span>
+                  <span className="text-muted-foreground text-xs flex-shrink-0">ate</span>
                   <input
                     type="time"
                     value={h.close}
                     onChange={(e) => handleChange(index, "close", e.target.value)}
-                    className="flex-1 min-w-[100px] rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    className="flex-1 min-w-0 rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                   />
-                </>
+                </div>
               )}
             </div>
           </div>

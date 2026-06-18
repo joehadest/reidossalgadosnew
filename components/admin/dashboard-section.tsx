@@ -3,6 +3,7 @@
 import { motion } from "framer-motion"
 import { UtensilsCrossed, Tag, Truck, Clock, CreditCard, TrendingUp } from "lucide-react"
 import { useAdmin } from "@/lib/admin-context"
+import { getTodayDayName, normalizeStoreHours } from "@/lib/store-hours"
 import type { AdminSection } from "./admin-sidebar"
 
 interface DashboardSectionProps {
@@ -40,10 +41,8 @@ export function DashboardSection({ onNavigate }: DashboardSectionProps) {
   ]
 
   const now = new Date()
-  const dayIndex = now.getDay()
-  const days = ["Domingo", "Segunda", "Terca", "Quarta", "Quinta", "Sexta", "Sabado"]
-  const today = days[dayIndex]
-  const schedule = store.hours.find((h) => h.day === today)
+  const today = getTodayDayName(now)
+  const schedule = normalizeStoreHours(store.hours).find((h) => h.day === today)
 
   const isOpen = (() => {
     if (!schedule || schedule.closed) return false

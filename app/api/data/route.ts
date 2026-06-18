@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
+import { normalizeStoreHours } from "@/lib/store-hours"
 
 export async function GET() {
   try {
@@ -38,7 +39,9 @@ export async function GET() {
       about: store.about,
       pixKey: store.pixKey,
       paymentMethods: store.paymentMethods.map((p) => p.name),
-      hours: store.hours.map((h) => ({ day: h.day, open: h.open, close: h.close, closed: h.closed })),
+      hours: normalizeStoreHours(
+        store.hours.map((h) => ({ day: h.day, open: h.open, close: h.close, closed: h.closed }))
+      ),
       deliveryFees: store.deliveryFees.map((f) => ({
         neighborhood: f.neighborhood,
         fee: f.fee,

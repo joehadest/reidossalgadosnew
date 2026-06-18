@@ -161,11 +161,11 @@ export function OrdersSection() {
           <h2 className="font-display text-2xl font-bold">Pedidos</h2>
           <p className="text-sm text-muted-foreground mt-1">Gerencie os pedidos recebidos</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-2 w-full sm:flex-row sm:flex-wrap">
           <button
             onClick={fetchOrders}
             disabled={loading}
-            className="flex items-center gap-2 rounded-xl border border-border px-4 py-2.5 text-sm font-medium hover:bg-secondary transition-colors disabled:opacity-50"
+            className="flex items-center justify-center gap-2 rounded-xl border border-border px-4 py-2.5 text-sm font-medium hover:bg-secondary transition-colors disabled:opacity-50 w-full sm:w-auto"
           >
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             Atualizar
@@ -173,7 +173,7 @@ export function OrdersSection() {
           <button
             onClick={deleteAllOrders}
             disabled={loading || orders.length === 0 || deletingAll}
-            className="flex items-center gap-2 rounded-xl border border-destructive/50 px-4 py-2.5 text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center justify-center gap-2 rounded-xl border border-destructive/50 px-4 py-2.5 text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto"
             title="Apagar todos os pedidos"
           >
             <Trash className={`h-4 w-4 ${deletingAll ? "animate-pulse" : ""}`} />
@@ -183,11 +183,11 @@ export function OrdersSection() {
       </div>
 
       {/* Filtros */}
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="rounded-lg border border-border bg-card px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+          className="w-full sm:flex-1 sm:min-w-[160px] rounded-lg border border-border bg-card px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
         >
           <option value="">Todos os status</option>
           {STATUS_OPTIONS.map((o) => (
@@ -199,7 +199,7 @@ export function OrdersSection() {
         <select
           value={dateFilter}
           onChange={(e) => setDateFilter(e.target.value)}
-          className="rounded-lg border border-border bg-card px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+          className="w-full sm:flex-1 sm:min-w-[160px] rounded-lg border border-border bg-card px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
         >
           <option value="hoje">Hoje</option>
           <option value="semana">Esta semana</option>
@@ -224,14 +224,14 @@ export function OrdersSection() {
               key={order.id}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="rounded-2xl border border-border bg-card p-4 sm:p-5"
+              className="rounded-2xl border border-border bg-card p-4"
             >
-              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="font-semibold text-sm">{order.name}</h3>
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-3">
+                    <h3 className="font-semibold text-sm break-words">{order.name}</h3>
                     <span
-                      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                      className={`inline-flex flex-shrink-0 items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
                         order.status === "recebido"
                           ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
                           : order.status === "entregue" || order.status === "cancelado"
@@ -242,17 +242,18 @@ export function OrdersSection() {
                       {STATUS_LABELS[order.status] || order.status}
                     </span>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">
+                  <p className="text-xs text-muted-foreground mt-2">
                     {order.items.length} itens • R$ {order.total.toFixed(2).replace(".", ",")}
                   </p>
-                  <p className="text-xs text-muted-foreground">{formatDate(order.createdAt)}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{formatDate(order.createdAt)}</p>
                 </div>
-                <div className="flex items-center gap-2">
+
+                <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:flex-shrink-0">
                   <select
                     value={order.status}
                     onChange={(e) => updateStatus(order.id, e.target.value)}
                     disabled={updatingId === order.id}
-                    className="rounded-lg border border-border bg-card px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
+                    className="w-full lg:w-auto lg:min-w-[140px] rounded-lg border border-border bg-card px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
                   >
                     {STATUS_OPTIONS.map((o) => (
                       <option key={o.value} value={o.value}>
@@ -260,28 +261,30 @@ export function OrdersSection() {
                       </option>
                     ))}
                   </select>
-                  <button
-                    onClick={() => printOrderThermal(order, store.name)}
-                    className="rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-secondary transition-colors flex items-center gap-1.5"
-                    title="Imprimir em impressora térmica 88mm"
-                  >
-                    <Printer className="h-4 w-4" />
-                    Imprimir
-                  </button>
-                  <button
-                    onClick={() => setDetailOrder(order)}
-                    className="rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-secondary transition-colors"
-                  >
-                    Detalhes
-                  </button>
-                  <button
-                    onClick={() => deleteOrder(order.id)}
-                    disabled={deletingId === order.id}
-                    className="rounded-lg border border-destructive/50 px-3 py-2 text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
-                    title="Remover pedido"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                  <div className="grid grid-cols-3 gap-2 lg:flex lg:items-center">
+                    <button
+                      onClick={() => printOrderThermal(order, store.name)}
+                      className="rounded-lg border border-border px-2 py-2.5 text-xs sm:text-sm font-medium hover:bg-secondary transition-colors flex items-center justify-center gap-1.5 lg:px-3"
+                      title="Imprimir em impressora térmica 88mm"
+                    >
+                      <Printer className="h-4 w-4 flex-shrink-0" />
+                      <span className="hidden sm:inline">Imprimir</span>
+                    </button>
+                    <button
+                      onClick={() => setDetailOrder(order)}
+                      className="rounded-lg border border-border px-2 py-2.5 text-xs sm:text-sm font-medium hover:bg-secondary transition-colors"
+                    >
+                      Detalhes
+                    </button>
+                    <button
+                      onClick={() => deleteOrder(order.id)}
+                      disabled={deletingId === order.id}
+                      className="rounded-lg border border-destructive/50 px-2 py-2.5 text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50 flex items-center justify-center"
+                      title="Remover pedido"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
             </motion.div>
@@ -304,7 +307,7 @@ export function OrdersSection() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="fixed inset-4 z-50 m-auto max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl bg-card border border-border flex flex-col"
+              className="modal-panel bg-card"
             >
               <div className="flex items-center justify-between p-4 border-b border-border sticky top-0 bg-card z-10">
                 <h3 className="font-display text-lg font-bold">Pedido #{detailOrder.id.slice(-6)}</h3>

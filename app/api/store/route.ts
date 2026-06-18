@@ -1,5 +1,17 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
+import { normalizeStoreHours } from "@/lib/store-hours"
+
+function isValidHourEntry(h: {
+  day?: string
+  open?: string
+  close?: string
+  closed?: boolean
+}) {
+  if (!h?.day) return false
+  if (h.closed) return true
+  return Boolean(h.open && h.close)
+}
 
 export async function PATCH(request: NextRequest) {
   try {
@@ -60,16 +72,16 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (hours !== undefined) {
-      const hoursList = Array.isArray(hours) ? hours : []
+      const hoursList = normalizeStoreHours(Array.isArray(hours) ? hours : [])
       await prisma.storeHour.deleteMany({ where: { storeId: store.id } })
-      for (const h of hoursList as { day: string; open: string; close: string; closed?: boolean }[]) {
-        if (!h?.day || !h?.open || !h?.close) continue
+      for (const h of hoursList) {
+        if (!isValidHourEntry(h)) continue
         await prisma.storeHour.create({
           data: {
             storeId: store.id,
             day: String(h.day),
-            open: String(h.open),
-            close: String(h.close),
+            open: String(h.open || "00:00"),
+            close: String(h.close || "00:00"),
             closed: Boolean(h.closed),
           },
         })

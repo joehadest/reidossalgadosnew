@@ -158,7 +158,7 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className="fixed inset-4 z-50 m-auto max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl bg-background border border-border flex flex-col"
+            className="modal-panel"
           >
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-border sticky top-0 bg-background z-10">
