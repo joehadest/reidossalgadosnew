@@ -14,11 +14,12 @@ import { DeliverySection } from "@/components/admin/delivery-section"
 import { HoursSection } from "@/components/admin/hours-section"
 import { PaymentsSection } from "@/components/admin/payments-section"
 import { OrdersSection } from "@/components/admin/orders-section"
+import { DailyProfitSection } from "@/components/admin/daily-profit-section"
 import { PasswordSection } from "@/components/admin/password-section"
 import { playNotificationSound } from "@/lib/notification-sound"
 
 const VALID_SECTIONS: AdminSection[] = [
-  "dashboard", "menu", "categories", "store-info", "delivery", "hours", "payments", "orders", "security"
+  "dashboard", "menu", "categories", "store-info", "delivery", "hours", "payments", "orders", "profit", "security"
 ]
 
 const sectionLabels: Record<AdminSection, string> = {
@@ -30,6 +31,7 @@ const sectionLabels: Record<AdminSection, string> = {
   hours: "Horarios",
   payments: "Pagamentos",
   orders: "Pedidos",
+  profit: "Faturamento",
   security: "Alterar senha",
 }
 
@@ -191,6 +193,7 @@ export default function AdminPage() {
               {activeSection === "hours" && <HoursSection />}
               {activeSection === "payments" && <PaymentsSection />}
               {activeSection === "orders" && <OrdersSection />}
+              {activeSection === "profit" && <DailyProfitSection />}
               {activeSection === "security" && <PasswordSection />}
             </motion.div>
           </AnimatePresence>
