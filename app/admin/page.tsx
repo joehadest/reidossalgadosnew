@@ -68,6 +68,7 @@ export default function AdminPage() {
 
   function handleSectionChange(section: AdminSection) {
     setActiveSection(section)
+    if (section === "orders") setOrdersBadge(0)
     const params = new URLSearchParams(searchParams.toString())
     params.set("section", section)
     router.replace(`/admin?${params.toString()}`, { scroll: false })
@@ -114,33 +115,9 @@ export default function AdminPage() {
   useEffect(() => {
     if (!authenticated) return
 
-    async function fetchBadge() {
-      try {
-        const res = await fetch("/api/orders?status=recebido&limit=1")
-        if (!res.ok) return
-        const data = await res.json()
-        setOrdersBadge(data.total ?? 0)
-      } catch {
-        // ignore
-      }
-    }
-
-    fetchBadge()
-  }, [authenticated])
-
-  useEffect(() => {
-    if (!authenticated) return
-
     async function poll() {
       try {
-        const [badgeRes, newRes] = await Promise.all([
-          fetch("/api/orders?status=recebido&limit=1"),
-          fetch("/api/orders?new=true"),
-        ])
-        if (badgeRes.ok) {
-          const badgeData = await badgeRes.json()
-          setOrdersBadge(badgeData.total ?? 0)
-        }
+        const newRes = await fetch("/api/orders?new=true")
         if (newRes.ok) {
           const newData = await newRes.json()
           const orders = newData.orders ?? []
@@ -148,6 +125,7 @@ export default function AdminPage() {
           if (lastPollTimeRef.current !== null) {
             const newOrders = orders.filter((o: { createdAt: string }) => new Date(o.createdAt).getTime() > lastPollTimeRef.current!)
             if (newOrders.length > 0) {
+              setOrdersBadge((prev) => prev + newOrders.length)
               playNotificationSound()
               if (navigator.vibrate) navigator.vibrate([300, 100, 300, 100, 300])
               const title = newOrders.length === 1 ? "Novo pedido!" : `${newOrders.length} novos pedidos!`
