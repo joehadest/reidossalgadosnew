@@ -19,6 +19,7 @@ import {
   Lock,
   DollarSign,
 } from "lucide-react"
+import { NotificationBell } from "./notification-bell"
 
 export type AdminSection =
   | "dashboard"
@@ -115,6 +116,7 @@ export function AdminSidebar({
       </nav>
 
       <div className="p-3 border-t border-border flex flex-col gap-1">
+        <NotificationBell />
         <Link
           href="/admin/balcao"
           onClick={onMobileClose}

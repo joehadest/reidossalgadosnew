@@ -50,6 +50,8 @@ export default function AdminPage() {
   const [hydrated, setHydrated] = useState(false)
   const [ordersBadge, setOrdersBadge] = useState(0)
   const lastPollTimeRef = useRef<number | null>(null)
+  const flashIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const originalTitleRef = useRef<string>("")
 
   useEffect(() => {
     const auth = localStorage.getItem("rs-admin-auth")
@@ -75,6 +77,37 @@ export default function AdminPage() {
     if (!authenticated) return
     if ("Notification" in window && Notification.permission === "default") {
       Notification.requestPermission()
+    }
+  }, [authenticated])
+
+  function stopTitleFlash() {
+    if (flashIntervalRef.current) {
+      clearInterval(flashIntervalRef.current)
+      flashIntervalRef.current = null
+    }
+    if (originalTitleRef.current) {
+      document.title = originalTitleRef.current
+    }
+  }
+
+  function startTitleFlash(message: string) {
+    if (!originalTitleRef.current) {
+      originalTitleRef.current = document.title
+    }
+    if (flashIntervalRef.current) clearInterval(flashIntervalRef.current)
+    let showAlert = true
+    flashIntervalRef.current = setInterval(() => {
+      document.title = showAlert ? message : originalTitleRef.current
+      showAlert = !showAlert
+    }, 1200)
+  }
+
+  useEffect(() => {
+    if (!authenticated) return
+    document.addEventListener("visibilitychange", stopTitleFlash)
+    return () => {
+      document.removeEventListener("visibilitychange", stopTitleFlash)
+      stopTitleFlash()
     }
   }, [authenticated])
 
@@ -116,9 +149,10 @@ export default function AdminPage() {
             const newOrders = orders.filter((o: { createdAt: string }) => new Date(o.createdAt).getTime() > lastPollTimeRef.current!)
             if (newOrders.length > 0) {
               playNotificationSound()
-              toast.success("Novo pedido!", { description: `${newOrders.length} pedido(s) recebido(s)` })
+              if (navigator.vibrate) navigator.vibrate([300, 100, 300, 100, 300])
+              const title = newOrders.length === 1 ? "Novo pedido!" : `${newOrders.length} novos pedidos!`
+              toast.success(title, { description: `${newOrders.length} pedido(s) recebido(s)` })
               if ("Notification" in window && Notification.permission === "granted") {
-                const title = newOrders.length === 1 ? "Novo pedido!" : `${newOrders.length} novos pedidos!`
                 const body = newOrders.length === 1
                   ? `${newOrders[0].name} - R$ ${Number(newOrders[0].total).toFixed(2).replace(".", ",")}`
                   : `${newOrders.length} pedido(s) recebido(s)`
@@ -126,6 +160,9 @@ export default function AdminPage() {
                   body,
                   icon: "/logo/logoreidossalgados.png",
                 })
+              }
+              if (document.hidden) {
+                startTitleFlash(`🔔 ${title}`)
               }
             }
           }
