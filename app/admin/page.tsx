@@ -189,7 +189,7 @@ export default function AdminPage() {
           title={sectionLabels[activeSection]}
         />
 
-        <main className="p-4 sm:p-6 lg:p-8 w-full max-w-6xl mx-auto">
+        <main className="p-4 sm:p-6 lg:p-8 2xl:p-10 w-full max-w-6xl 2xl:max-w-[1600px] 3xl:max-w-[1920px] mx-auto">
           <AnimatePresence mode="wait">
             <motion.div
               key={activeSection}

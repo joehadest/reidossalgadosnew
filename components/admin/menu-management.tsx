@@ -98,7 +98,7 @@ export function MenuManagement() {
                               <span className="ml-1.5 text-xs font-normal text-amber-600">(indisponível)</span>
                             )}
                           </p>
-                          <p className="text-xs text-muted-foreground truncate max-w-[200px]">{item.description}</p>
+                          <p className="text-xs text-muted-foreground truncate max-w-[200px] lg:max-w-[360px] 2xl:max-w-[520px]">{item.description}</p>
                         </div>
                       </div>
                     </td>
@@ -297,10 +297,10 @@ function MenuItemModal({
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
         transition={{ type: "spring", damping: 25, stiffness: 300 }}
-        className="modal-panel-md"
+        className="modal-panel-md md:max-w-xl lg:max-w-2xl xl:max-w-3xl 2xl:max-w-4xl"
       >
-        <div className="flex items-center justify-between p-4 border-b border-border sticky top-0 bg-background z-10">
-          <h3 className="font-display text-lg font-bold">
+        <div className="flex items-center justify-between p-4 lg:p-6 border-b border-border sticky top-0 bg-background z-10">
+          <h3 className="font-display text-lg lg:text-xl font-bold">
             {item ? "Editar Item" : "Novo Item"}
           </h3>
           <button onClick={onClose} className="p-2 rounded-lg hover:bg-secondary transition-colors">
@@ -308,42 +308,76 @@ function MenuItemModal({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-4 flex flex-col gap-4">
-          <div>
-            <label className="text-xs text-muted-foreground mb-1 block">Nome *</label>
-            <input
-              type="text"
-              required
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              className="w-full rounded-xl border border-border bg-card px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-              placeholder="Nome do item"
-            />
-          </div>
+        <form onSubmit={handleSubmit} className="p-4 lg:p-6 flex flex-col gap-4 lg:gap-5">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-5">
+            <div className="lg:col-span-2">
+              <label className="text-xs text-muted-foreground mb-1 block">Nome *</label>
+              <input
+                type="text"
+                required
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                className="w-full rounded-xl border border-border bg-card px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                placeholder="Nome do item"
+              />
+            </div>
 
-          <div>
-            <label className="text-xs text-muted-foreground mb-1 block">Descricao *</label>
-            <textarea
-              required
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
-              rows={3}
-              className="w-full rounded-xl border border-border bg-card px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
-              placeholder="Descricao do item"
-            />
-          </div>
+            <div className="lg:col-span-2">
+              <label className="text-xs text-muted-foreground mb-1 block">Descricao *</label>
+              <textarea
+                required
+                value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })}
+                rows={3}
+                className="w-full rounded-xl border border-border bg-card px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
+                placeholder="Descricao do item"
+              />
+            </div>
 
-          <div>
-            <label className="text-xs text-muted-foreground mb-1 block">Preco base (R$) - usado quando nao ha variantes</label>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={form.price || ""}
-              onChange={(e) => setForm({ ...form, price: parseFloat(e.target.value) || 0 })}
-              className="w-full rounded-xl border border-border bg-card px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-              placeholder="0,00"
-            />
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Preco base (R$) - usado quando nao ha variantes</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.price || ""}
+                onChange={(e) => setForm({ ...form, price: parseFloat(e.target.value) || 0 })}
+                className="w-full rounded-xl border border-border bg-card px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                placeholder="0,00"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Categoria *</label>
+              <select
+                required
+                value={form.category}
+                onChange={(e) => setForm({ ...form, category: e.target.value })}
+                className="w-full rounded-xl border border-border bg-card px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+              >
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>{cat.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="lg:col-span-2">
+              <label className="text-xs text-muted-foreground mb-1 block">URL da Imagem</label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="text"
+                  value={form.image}
+                  onChange={(e) => setForm({ ...form, image: e.target.value })}
+                  className="flex-1 rounded-xl border border-border bg-card px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  placeholder="/images/item.jpg"
+                />
+                {form.image && (
+                  <div className="relative h-10 w-10 lg:h-14 lg:w-14 flex-shrink-0 rounded-lg overflow-hidden border border-border">
+                    <Image src={form.image} alt="Preview" fill className="object-cover" sizes="56px" />
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
           <div>
@@ -357,7 +391,7 @@ function MenuItemModal({
                 + Adicionar
               </button>
             </div>
-            <div className="space-y-2 max-h-40 overflow-y-auto">
+            <div className="space-y-2 max-h-40 lg:max-h-56 overflow-y-auto">
               {(form.variants || []).map((v, i) => (
                 <div key={i} className="flex gap-2 items-center rounded-lg border border-border p-2 bg-secondary/30">
                   <input
@@ -374,7 +408,7 @@ function MenuItemModal({
                     value={v.price || ""}
                     onChange={(e) => updateVariant(i, { price: parseFloat(e.target.value) || 0 })}
                     placeholder="R$"
-                    className="w-20 rounded-lg border border-border bg-card px-2 py-1.5 text-sm"
+                    className="w-20 lg:w-28 rounded-lg border border-border bg-card px-2 py-1.5 text-sm"
                   />
                   <label className="flex items-center gap-1 text-xs whitespace-nowrap">
                     <input
@@ -406,49 +440,17 @@ function MenuItemModal({
             <span className="text-sm font-medium">Disponível no cardápio</span>
           </label>
 
-          <div>
-            <label className="text-xs text-muted-foreground mb-1 block">Categoria *</label>
-            <select
-              required
-              value={form.category}
-              onChange={(e) => setForm({ ...form, category: e.target.value })}
-              className="w-full rounded-xl border border-border bg-card px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-            >
-              {categories.map((cat) => (
-                <option key={cat.id} value={cat.id}>{cat.name}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="text-xs text-muted-foreground mb-1 block">URL da Imagem</label>
-            <div className="flex items-center gap-3">
-              <input
-                type="text"
-                value={form.image}
-                onChange={(e) => setForm({ ...form, image: e.target.value })}
-                className="flex-1 rounded-xl border border-border bg-card px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                placeholder="/images/item.jpg"
-              />
-              {form.image && (
-                <div className="relative h-10 w-10 flex-shrink-0 rounded-lg overflow-hidden border border-border">
-                  <Image src={form.image} alt="Preview" fill className="object-cover" sizes="40px" />
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="flex gap-3 pt-2">
+          <div className="flex gap-3 pt-2 lg:justify-end">
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 rounded-xl border border-border bg-card py-2.5 text-sm font-semibold hover:bg-secondary transition-colors"
+              className="flex-1 lg:flex-none lg:w-36 rounded-xl border border-border bg-card py-2.5 text-sm font-semibold hover:bg-secondary transition-colors"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="flex-1 rounded-xl bg-primary py-2.5 text-sm font-bold text-primary-foreground hover:bg-primary/90 transition-colors"
+              className="flex-1 lg:flex-none lg:w-36 rounded-xl bg-primary py-2.5 text-sm font-bold text-primary-foreground hover:bg-primary/90 transition-colors"
             >
               Salvar
             </button>
