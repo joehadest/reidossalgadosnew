@@ -77,12 +77,12 @@
   .modal-panel {
     @apply fixed z-50 flex flex-col overflow-y-auto border border-border bg-background;
     @apply inset-x-0 bottom-0 max-h-[92dvh] w-full rounded-t-2xl;
-    @apply sm:inset-4 sm:bottom-auto sm:m-auto sm:max-h-[90vh] sm:max-w-lg sm:rounded-2xl;
+    @apply sm:inset-4 sm:m-auto sm:max-h-[90vh] sm:max-w-lg sm:rounded-2xl;
   }
 
   .modal-panel-md {
     @apply fixed z-50 flex flex-col overflow-y-auto border border-border bg-background;
     @apply inset-x-0 bottom-0 max-h-[92dvh] w-full rounded-t-2xl;
-    @apply sm:inset-4 sm:bottom-auto sm:m-auto sm:max-h-[90vh] sm:max-w-md sm:rounded-2xl;
+    @apply sm:inset-4 sm:m-auto sm:max-h-[90vh] sm:max-w-md sm:rounded-2xl;
   }
 }
