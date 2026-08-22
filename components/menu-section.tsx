@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect, useMemo } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { Plus, Minus, Flame, Cookie, CupSoda, Package, Search, UtensilsCrossed } from "lucide-react"
 import Image from "next/image"
@@ -23,17 +23,80 @@ export function MenuSection() {
   const isOpen = getStoreStatus(store.hours)
   const [activeCategory, setActiveCategory] = useState(categories[0]?.id || "")
   const [searchQuery, setSearchQuery] = useState("")
-  const scrollRef = useRef<HTMLDivElement>(null)
+  const navRef = useRef<HTMLDivElement>(null)
+  const sectionRefs = useRef<Record<string, HTMLElement | null>>({})
+  const scrollLockRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const filteredItems = menuItems.filter((item) => {
-    if (item.available === false) return false
-    const matchesCategory = item.category === activeCategory
-    const matchesSearch =
-      searchQuery === "" ||
-      item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.description.toLowerCase().includes(searchQuery.toLowerCase())
-    return searchQuery ? matchesSearch : matchesCategory
-  })
+  const availableItems = useMemo(() => menuItems.filter((item) => item.available !== false), [menuItems])
+
+  const categoriesWithItems = useMemo(
+    () =>
+      categories
+        .map((cat) => ({ ...cat, items: availableItems.filter((item) => item.category === cat.id) }))
+        .filter((cat) => cat.items.length > 0),
+    [categories, availableItems]
+  )
+
+  const searchResults = useMemo(() => {
+    if (!searchQuery) return []
+    const q = searchQuery.toLowerCase()
+    return availableItems.filter(
+      (item) => item.name.toLowerCase().includes(q) || item.description.toLowerCase().includes(q)
+    )
+  }, [searchQuery, availableItems])
+
+  const categoryIdsKey = categoriesWithItems.map((c) => c.id).join(",")
+
+  // Garante uma categoria ativa valida
+  useEffect(() => {
+    if (categoriesWithItems.length > 0 && !categoriesWithItems.some((c) => c.id === activeCategory)) {
+      setActiveCategory(categoriesWithItems[0].id)
+    }
+  }, [categoriesWithItems, activeCategory])
+
+  // Scroll-spy: atualiza a categoria ativa conforme a rolagem da pagina
+  useEffect(() => {
+    if (searchQuery) return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (scrollLockRef.current) return
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            setActiveCategory(entry.target.id.replace("category-", ""))
+          }
+        }
+      },
+      { rootMargin: "-140px 0px -70% 0px", threshold: 0 }
+    )
+    categoriesWithItems.forEach((cat) => {
+      const el = sectionRefs.current[cat.id]
+      if (el) observer.observe(el)
+    })
+    return () => observer.disconnect()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery, categoryIdsKey])
+
+  // Centraliza o botao da categoria ativa na barra horizontal
+  useEffect(() => {
+    const nav = navRef.current
+    const btn = nav?.querySelector<HTMLButtonElement>(`[data-category="${activeCategory}"]`)
+    if (!nav || !btn) return
+    const navRect = nav.getBoundingClientRect()
+    const btnRect = btn.getBoundingClientRect()
+    nav.scrollTo({
+      left: nav.scrollLeft + (btnRect.left - navRect.left) - navRect.width / 2 + btnRect.width / 2,
+      behavior: "smooth",
+    })
+  }, [activeCategory])
+
+  const scrollToCategory = (id: string) => {
+    if (scrollLockRef.current) clearTimeout(scrollLockRef.current)
+    scrollLockRef.current = setTimeout(() => {
+      scrollLockRef.current = null
+    }, 1000)
+    setActiveCategory(id)
+    sectionRefs.current[id]?.scrollIntoView({ behavior: "smooth", block: "start" })
+  }
 
   return (
     <section id="cardapio" className="py-12 scroll-mt-20">
@@ -68,27 +131,34 @@ export function MenuSection() {
             </button>
           )}
         </div>
+      </div>
 
-        {/* Categories */}
-        {!searchQuery && (
-          <div ref={scrollRef} className="mt-6 flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-            {categories.map((cat) => (
-              <button
-                key={cat.id}
-                onClick={() => setActiveCategory(cat.id)}
-                className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-medium transition-all ${
-                  activeCategory === cat.id
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-card border border-border text-muted-foreground hover:text-foreground hover:border-primary/30"
-                }`}
-              >
-                {iconMap[cat.icon]}
-                {cat.name}
-              </button>
-            ))}
+      {/* Categories - barra fixa que acompanha a rolagem */}
+      {!searchQuery && categoriesWithItems.length > 0 && (
+        <div className="sticky top-[60px] z-40 mt-6 border-b border-border bg-background/95 backdrop-blur-md">
+          <div className="mx-auto max-w-7xl px-4">
+            <div ref={navRef} className="flex gap-2 overflow-x-auto py-3 scrollbar-hide">
+              {categoriesWithItems.map((cat) => (
+                <button
+                  key={cat.id}
+                  data-category={cat.id}
+                  onClick={() => scrollToCategory(cat.id)}
+                  className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-medium transition-all ${
+                    activeCategory === cat.id
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-card border border-border text-muted-foreground hover:text-foreground hover:border-primary/30"
+                  }`}
+                >
+                  {iconMap[cat.icon]}
+                  {cat.name}
+                </button>
+              ))}
+            </div>
           </div>
-        )}
+        </div>
+      )}
 
+      <div className="mx-auto max-w-7xl px-4">
         {/* Closed overlay */}
         {!isOpen && (
           <div className="mt-8 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-6 text-center">
@@ -97,18 +167,44 @@ export function MenuSection() {
           </div>
         )}
 
-        {/* Menu Grid */}
-        <div className={`mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 ${!isOpen ? "pointer-events-none opacity-60" : ""}`}>
-          <AnimatePresence mode="popLayout">
-            {filteredItems.map((item, index) => (
-              <MenuItemCard key={item.id} item={item} index={index} disabled={!isOpen} />
+        {searchQuery ? (
+          <>
+            <div className={`mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 ${!isOpen ? "pointer-events-none opacity-60" : ""}`}>
+              <AnimatePresence mode="popLayout">
+                {searchResults.map((item, index) => (
+                  <MenuItemCard key={item.id} item={item} index={index} disabled={!isOpen} />
+                ))}
+              </AnimatePresence>
+            </div>
+            {searchResults.length === 0 && (
+              <div className="mt-12 text-center">
+                <p className="text-muted-foreground">Nenhum item encontrado.</p>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className={!isOpen ? "pointer-events-none opacity-60" : ""}>
+            {categoriesWithItems.map((cat) => (
+              <div
+                key={cat.id}
+                id={`category-${cat.id}`}
+                ref={(el) => {
+                  sectionRefs.current[cat.id] = el
+                }}
+                className="scroll-mt-36 pt-10"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-primary">{iconMap[cat.icon]}</span>
+                  <h3 className="font-display text-xl font-bold">{cat.name}</h3>
+                  <span className="text-xs text-muted-foreground">({cat.items.length})</span>
+                </div>
+                <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {cat.items.map((item, index) => (
+                    <MenuItemCard key={item.id} item={item} index={index} disabled={!isOpen} />
+                  ))}
+                </div>
+              </div>
             ))}
-          </AnimatePresence>
-        </div>
-
-        {filteredItems.length === 0 && (
-          <div className="mt-12 text-center">
-            <p className="text-muted-foreground">Nenhum item encontrado.</p>
           </div>
         )}
       </div>
