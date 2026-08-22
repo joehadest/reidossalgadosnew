@@ -73,6 +73,31 @@
   background: hsl(48 100% 50%);
 }
 
+@property --hint-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+.hint-border-spin {
+  background: conic-gradient(
+    from var(--hint-angle),
+    hsl(var(--primary)) 0%,
+    transparent 25%,
+    hsl(var(--primary)) 50%,
+    transparent 75%,
+    hsl(var(--primary)) 100%
+  );
+  animation: hint-border-rotate 3s linear infinite;
+  opacity: 0.7;
+}
+
+@keyframes hint-border-rotate {
+  to {
+    --hint-angle: 360deg;
+  }
+}
+
 @layer components {
   .modal-panel {
     @apply fixed z-50 flex flex-col overflow-y-auto border border-border bg-background;
