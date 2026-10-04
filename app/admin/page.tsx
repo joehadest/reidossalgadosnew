@@ -2,14 +2,14 @@
 
 import { useState, useEffect, useRef } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
-import { motion, AnimatePresence } from "framer-motion"
+import { motion, AnimatePresence, MotionConfig } from "framer-motion"
 import { toast } from "sonner"
 import { AdminLogin } from "@/components/admin/admin-login"
 import { AdminSidebar, AdminMobileHeader, type AdminSection } from "@/components/admin/admin-sidebar"
 import { DashboardSection } from "@/components/admin/dashboard-section"
 import { MenuManagement } from "@/components/admin/menu-management"
 import { CategoriesSection } from "@/components/admin/categories-section"
-import { StoreInfoSection } from "@/components/admin/store-info-section"
+import { StoreInfoSection, type StoreNavigationGuard } from "@/components/admin/store-info-section"
 import { DeliverySection } from "@/components/admin/delivery-section"
 import { HoursSection } from "@/components/admin/hours-section"
 import { PaymentsSection } from "@/components/admin/payments-section"
@@ -24,11 +24,11 @@ const VALID_SECTIONS: AdminSection[] = [
 
 const sectionLabels: Record<AdminSection, string> = {
   dashboard: "Dashboard",
-  menu: "Cardapio",
+  menu: "Cardápio",
   categories: "Categorias",
-  "store-info": "Info da Loja",
+  "store-info": "Informações da loja",
   delivery: "Taxas de Entrega",
-  hours: "Horarios",
+  hours: "Horários",
   payments: "Pagamentos",
   orders: "Pedidos",
   profit: "Faturamento",
@@ -52,6 +52,7 @@ export default function AdminPage() {
   const lastPollTimeRef = useRef<number | null>(null)
   const flashIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const originalTitleRef = useRef<string>("")
+  const storeNavigationGuard = useRef<StoreNavigationGuard>(null)
 
   useEffect(() => {
     const auth = localStorage.getItem("rs-admin-auth")
@@ -61,12 +62,26 @@ export default function AdminPage() {
 
   useEffect(() => {
     const section = searchParams.get("section")
-    if (section && VALID_SECTIONS.includes(section as AdminSection)) {
-      setActiveSection(section as AdminSection)
+    if (section && VALID_SECTIONS.includes(section as AdminSection) && section !== activeSection) {
+      if ((activeSection === "store-info" || activeSection === "hours" || activeSection === "security") && storeNavigationGuard.current) {
+        const restored = new URLSearchParams(searchParams.toString())
+        restored.set("section", activeSection)
+        router.replace(`/admin?${restored.toString()}`, { scroll: false })
+        storeNavigationGuard.current(() => applySectionChange(section as AdminSection))
+      } else setActiveSection(section as AdminSection)
     }
   }, [searchParams])
 
   function handleSectionChange(section: AdminSection) {
+    if (section === activeSection) return
+    if ((activeSection === "store-info" || activeSection === "hours" || activeSection === "security") && storeNavigationGuard.current) {
+      storeNavigationGuard.current(() => applySectionChange(section))
+      return
+    }
+    applySectionChange(section)
+  }
+
+  function applySectionChange(section: AdminSection) {
     setActiveSection(section)
     if (section === "orders") setOrdersBadge(0)
     const params = new URLSearchParams(searchParams.toString())
@@ -156,7 +171,16 @@ export default function AdminPage() {
   }, [authenticated])
 
   function handleLogout() {
+    if ((activeSection === "store-info" || activeSection === "hours" || activeSection === "security") && storeNavigationGuard.current) {
+      storeNavigationGuard.current(logout)
+      return
+    }
+    logout()
+  }
+
+  function logout() {
     localStorage.removeItem("rs-admin-auth")
+    setMobileOpen(false)
     setAuthenticated(false)
   }
 
@@ -169,11 +193,13 @@ export default function AdminPage() {
   }
 
   if (!authenticated) {
-    return <AdminLogin onLogin={() => setAuthenticated(true)} />
+    return <AdminLogin onLogin={() => { setMobileOpen(false); setAuthenticated(true) }} />
   }
 
   return (
-    <div className="min-h-screen bg-background flex">
+    <MotionConfig reducedMotion="user">
+    <div className="admin-workspace min-h-screen bg-background flex">
+      <a href="#admin-main" className="admin-skip-link">Pular para o conteúdo</a>
       <AdminSidebar
         activeSection={activeSection}
         onSectionChange={handleSectionChange}
@@ -187,9 +213,10 @@ export default function AdminPage() {
         <AdminMobileHeader
           onMenuClick={() => setMobileOpen(true)}
           title={sectionLabels[activeSection]}
+          mobileOpen={mobileOpen}
         />
 
-        <main className="p-4 sm:p-6 lg:p-8 2xl:p-10 w-full max-w-6xl 2xl:max-w-[1600px] 3xl:max-w-[1920px] mx-auto">
+        <main id="admin-main" tabIndex={-1} className="p-4 sm:p-6 lg:p-8 2xl:p-10 w-full max-w-[1600px] mx-auto">
           <AnimatePresence mode="wait">
             <motion.div
               key={activeSection}
@@ -203,17 +230,18 @@ export default function AdminPage() {
               )}
               {activeSection === "menu" && <MenuManagement />}
               {activeSection === "categories" && <CategoriesSection />}
-              {activeSection === "store-info" && <StoreInfoSection />}
+              {activeSection === "store-info" && <StoreInfoSection onNavigate={handleSectionChange} onRegisterGuard={(guard) => { storeNavigationGuard.current = guard }} />}
               {activeSection === "delivery" && <DeliverySection />}
-              {activeSection === "hours" && <HoursSection />}
+              {activeSection === "hours" && <HoursSection onRegisterGuard={(guard) => { storeNavigationGuard.current = guard }} />}
               {activeSection === "payments" && <PaymentsSection />}
               {activeSection === "orders" && <OrdersSection />}
               {activeSection === "profit" && <DailyProfitSection />}
-              {activeSection === "security" && <PasswordSection />}
+              {activeSection === "security" && <PasswordSection onRegisterGuard={(guard) => { storeNavigationGuard.current = guard }} />}
             </motion.div>
           </AnimatePresence>
         </main>
       </div>
     </div>
+    </MotionConfig>
   )
 }

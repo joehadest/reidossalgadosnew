@@ -14,6 +14,7 @@ import {
 } from "lucide-react"
 import { useCart } from "@/lib/cart-context"
 import { useAdmin } from "@/lib/admin-context"
+import { paymentKind } from "@/lib/payment-methods"
 
 interface CheckoutModalProps {
   isOpen: boolean
@@ -23,10 +24,10 @@ interface CheckoutModalProps {
 type Step = "info" | "payment" | "confirmation"
 
 const paymentIcons: Record<string, React.ReactNode> = {
-  "Cartao de Credito": <CreditCard className="h-5 w-5" />,
-  "Cartao de Debito": <CreditCard className="h-5 w-5" />,
-  PIX: <QrCode className="h-5 w-5" />,
-  Dinheiro: <Banknote className="h-5 w-5" />,
+  credit: <CreditCard className="h-5 w-5" />,
+  debit: <CreditCard className="h-5 w-5" />,
+  pix: <QrCode className="h-5 w-5" />,
+  cash: <Banknote className="h-5 w-5" />,
 }
 
 export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
@@ -63,7 +64,7 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
       neighborhood: formData.neighborhood,
       complement: formData.complement || null,
       paymentMethod: formData.paymentMethod,
-      changeFor: formData.paymentMethod === "Dinheiro" && formData.change ? formData.change : null,
+      changeFor: paymentKind(formData.paymentMethod) === "cash" && formData.change ? formData.change : null,
       subtotal: totalPrice,
       deliveryFee,
       total: finalTotal,
@@ -101,7 +102,7 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
         return `${i.quantity}x ${label} - R$ ${(i.price * i.quantity).toFixed(2).replace(".", ",")}`
       })
       .join("\n")
-    const message = `*Novo Pedido - ${store.name}*\n\n*Cliente:* ${formData.name}\n*Telefone:* ${formData.phone}\n*Endereco:* ${formData.address}, ${formData.neighborhood}${formData.complement ? ` - ${formData.complement}` : ""}\n\n*Itens:*\n${itemsList}\n\n*Subtotal:* R$ ${totalPrice.toFixed(2).replace(".", ",")}\n*Entrega:* R$ ${deliveryFee.toFixed(2).replace(".", ",")}\n*Total:* R$ ${finalTotal.toFixed(2).replace(".", ",")}\n\n*Pagamento:* ${formData.paymentMethod}${formData.paymentMethod === "Dinheiro" && formData.change ? `\n*Troco para:* R$ ${formData.change}` : ""}`
+    const message = `*Novo Pedido - ${store.name}*\n\n*Cliente:* ${formData.name}\n*Telefone:* ${formData.phone}\n*Endereco:* ${formData.address}, ${formData.neighborhood}${formData.complement ? ` - ${formData.complement}` : ""}\n\n*Itens:*\n${itemsList}\n\n*Subtotal:* R$ ${totalPrice.toFixed(2).replace(".", ",")}\n*Entrega:* R$ ${deliveryFee.toFixed(2).replace(".", ",")}\n*Total:* R$ ${finalTotal.toFixed(2).replace(".", ",")}\n\n*Pagamento:* ${formData.paymentMethod}${paymentKind(formData.paymentMethod) === "cash" && formData.change ? `\n*Troco para:* R$ ${formData.change}` : ""}`
 
     const encoded = encodeURIComponent(message)
     const url = `https://wa.me/${store.whatsapp}?text=${encoded}`
@@ -292,22 +293,22 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                             : "border-border bg-card text-muted-foreground hover:border-primary/30"
                         }`}
                       >
-                        {paymentIcons[method] || <CreditCard className="h-5 w-5" />}
+                        {paymentIcons[paymentKind(method)] || <CreditCard className="h-5 w-5" />}
                         <span className="text-xs font-medium">{method}</span>
                       </button>
                     ))}
                   </div>
 
                   {/* PIX info */}
-                  {formData.paymentMethod === "PIX" && (
+                  {paymentKind(formData.paymentMethod) === "pix" && (
                     <motion.div
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: "auto" }}
                       className="rounded-xl border border-primary/20 bg-primary/5 p-4"
                     >
-                      <p className="text-xs text-muted-foreground mb-2">Chave PIX (Telefone):</p>
+                      <p className="text-xs text-muted-foreground mb-2">Chave Pix da loja:</p>
                       <div className="flex items-center gap-2">
-                        <code className="flex-1 rounded-lg bg-card px-3 py-2 text-sm font-mono">
+                        <code className="min-w-0 flex-1 break-all rounded-lg bg-card px-3 py-2 text-sm font-mono">
                           {store.pixKey}
                         </code>
                         <button
@@ -322,7 +323,7 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                   )}
 
                   {/* Change */}
-                  {formData.paymentMethod === "Dinheiro" && (
+                  {paymentKind(formData.paymentMethod) === "cash" && (
                     <motion.div
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: "auto" }}

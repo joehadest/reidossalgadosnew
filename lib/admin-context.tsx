@@ -53,11 +53,13 @@ interface AdminContextType {
   deleteCategory: (id: string) => Promise<void>
   reorderCategories: (ids: string[]) => Promise<void>
   addDeliveryFee: (fee: DeliveryFee) => Promise<void>
-  updateDeliveryFee: (neighborhood: string, data: DeliveryFee) => Promise<void>
-  deleteDeliveryFee: (neighborhood: string) => Promise<void>
-  addPaymentMethod: (method: string) => Promise<void>
+  updateDeliveryFee: (previous: DeliveryFee, data: DeliveryFee) => Promise<void>
+  deleteDeliveryFee: (previous: DeliveryFee) => Promise<void>
+  addPaymentMethod: (method: string, pixKey?: string, previousPixKey?: string) => Promise<void>
+  updatePaymentMethod: (previousName: string, name: string, pixKey?: string, previousPixKey?: string) => Promise<void>
+  updatePixKey: (pixKey: string, previousPixKey: string) => Promise<void>
   deletePaymentMethod: (method: string) => Promise<void>
-  updateHours: (hours: StoreHours[]) => Promise<void>
+  updateHours: (hours: StoreHours[], previousHours?: StoreHours[]) => Promise<StoreHours[]>
 }
 
 const AdminContext = createContext<AdminContextType | null>(null)
@@ -123,11 +125,11 @@ export function AdminProvider({ children }: { children: ReactNode }) {
   }, [refresh])
 
   const updateStore = useCallback(async (data: Partial<StoreInfo>) => {
-    await fetchApi("/api/store", {
+    const result = await fetchApi<{ store?: Partial<StoreInfo> }>("/api/store", {
       method: "PATCH",
       body: JSON.stringify(data),
     })
-    setStore((prev) => ({ ...prev, ...data }))
+    setStore((prev) => ({ ...prev, ...data, ...result.store }))
   }, [])
 
   const addMenuItem = useCallback(async (item: MenuItem) => {
@@ -139,15 +141,12 @@ export function AdminProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const updateMenuItem = useCallback(async (id: string, data: Partial<MenuItem>) => {
-    const res = await fetch(`/api/menu/${id}`, {
+    const updated = await fetchApi<MenuItem>(`/api/menu/${id}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     })
-    const json = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`)
     setItems((prev) =>
-      prev.map((i) => (i.id === id ? { ...i, ...data } : i))
+      prev.map((i) => (i.id === id ? updated : i))
     )
   }, [])
 
@@ -165,12 +164,12 @@ export function AdminProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const updateCategory = useCallback(async (id: string, data: Partial<Category>) => {
-    await fetchApi(`/api/categories/${id}`, {
+    const updated = await fetchApi<Category>(`/api/categories/${id}`, {
       method: "PATCH",
       body: JSON.stringify(data),
     })
     setCats((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, ...data } : c))
+      prev.map((c) => (c.id === id ? updated : c))
     )
   }, [])
 
@@ -180,65 +179,46 @@ export function AdminProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const reorderCategories = useCallback(async (ids: string[]) => {
-    await fetchApi("/api/categories/reorder", {
+    const result = await fetchApi<{ categories: Category[] }>("/api/categories/reorder", {
       method: "PATCH",
-      body: JSON.stringify({ ids }),
+      body: JSON.stringify({ ids, previousIds: cats.map((cat) => cat.id) }),
     })
-    setCats((prev) => {
-      const byId = new Map(prev.map((c) => [c.id, c]))
-      return ids.map((id) => byId.get(id)).filter(Boolean) as Category[]
+    setCats(result.categories)
+  }, [cats])
+
+  const mutateDeliveryFee = useCallback(async (method: string, data: unknown) => {
+    const result = await fetchApi<{ deliveryFees: DeliveryFee[] }>("/api/store/delivery-fees", {
+      method, body: JSON.stringify(data),
     })
+    setStore((prev) => ({ ...prev, deliveryFees: result.deliveryFees }))
   }, [])
+  const addDeliveryFee = useCallback((fee: DeliveryFee) => mutateDeliveryFee("POST", fee), [mutateDeliveryFee])
+  const updateDeliveryFee = useCallback((previous: DeliveryFee, data: DeliveryFee) =>
+    mutateDeliveryFee("PATCH", { previous, data }), [mutateDeliveryFee])
+  const deleteDeliveryFee = useCallback((previous: DeliveryFee) =>
+    mutateDeliveryFee("DELETE", { previous }), [mutateDeliveryFee])
 
-  const addDeliveryFee = useCallback(async (fee: DeliveryFee) => {
-    await updateStore({
-      deliveryFees: [...store.deliveryFees, fee],
+  const mutatePayment = useCallback(async (method: string, data: unknown) => {
+    const result = await fetchApi<{ paymentMethods: string[]; pixKey: string }>("/api/store/payments", {
+      method, body: JSON.stringify(data),
     })
-  }, [store.deliveryFees, updateStore])
+    setStore((prev) => ({ ...prev, paymentMethods: result.paymentMethods, pixKey: result.pixKey }))
+  }, [])
+  const addPaymentMethod = useCallback((name: string, pixKey?: string, previousPixKey?: string) =>
+    mutatePayment("POST", { name, pixKey, previousPixKey }), [mutatePayment])
+  const updatePaymentMethod = useCallback((previousName: string, name: string, pixKey?: string, previousPixKey?: string) =>
+    mutatePayment("PATCH", { action: "rename", previousName, name, pixKey, previousPixKey }), [mutatePayment])
+  const updatePixKey = useCallback((pixKey: string, previousPixKey: string) =>
+    mutatePayment("PATCH", { action: "pix", pixKey, previousPixKey }), [mutatePayment])
+  const deletePaymentMethod = useCallback((name: string) => mutatePayment("DELETE", { name }), [mutatePayment])
 
-  const updateDeliveryFee = useCallback(
-    async (neighborhood: string, data: DeliveryFee) => {
-      await updateStore({
-        deliveryFees: store.deliveryFees.map((f) =>
-          f.neighborhood === neighborhood ? data : f
-        ),
-      })
-    },
-    [store.deliveryFees, updateStore]
-  )
-
-  const deleteDeliveryFee = useCallback(
-    async (neighborhood: string) => {
-      await updateStore({
-        deliveryFees: store.deliveryFees.filter(
-          (f) => f.neighborhood !== neighborhood
-        ),
-      })
-    },
-    [store.deliveryFees, updateStore]
-  )
-
-  const addPaymentMethod = useCallback(
-    async (method: string) => {
-      await updateStore({
-        paymentMethods: [...store.paymentMethods, method],
-      })
-    },
-    [store.paymentMethods, updateStore]
-  )
-
-  const deletePaymentMethod = useCallback(
-    async (method: string) => {
-      await updateStore({
-        paymentMethods: store.paymentMethods.filter((m) => m !== method),
-      })
-    },
-    [store.paymentMethods, updateStore]
-  )
-
-  const updateHours = useCallback((hours: StoreHours[]) => {
-    return updateStore({ hours })
-  }, [updateStore])
+  const updateHours = useCallback(async (hours: StoreHours[], previousHours?: StoreHours[]) => {
+    const result = await fetchApi<{ hours: StoreHours[] }>("/api/store/hours", {
+      method: "PATCH", body: JSON.stringify({ hours, previousHours }),
+    })
+    setStore((prev) => ({ ...prev, hours: result.hours }))
+    return result.hours
+  }, [])
 
   return (
     <AdminContext.Provider
@@ -261,6 +241,8 @@ export function AdminProvider({ children }: { children: ReactNode }) {
         updateDeliveryFee,
         deleteDeliveryFee,
         addPaymentMethod,
+        updatePaymentMethod,
+        updatePixKey,
         deletePaymentMethod,
         updateHours,
       }}

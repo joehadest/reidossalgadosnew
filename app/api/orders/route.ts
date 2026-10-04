@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
+import { parseOrderQuery, orderBaseWhere } from "@/lib/order-query"
 
 export async function POST(request: NextRequest) {
   try {
@@ -63,47 +64,35 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url)
-    const status = searchParams.get("status")
-    const dateFilter = searchParams.get("date") // hoje | semana | todos
-    const newOnly = searchParams.get("new") === "true"
-    const page = parseInt(searchParams.get("page") || "1", 10)
-    const limit = parseInt(searchParams.get("limit") || "50", 10)
-    const skip = (page - 1) * limit
-
-    const where: Record<string, unknown> = {}
-
-    if (status) {
-      where.status = status
-    }
-
-    if (newOnly) {
-      where.status = "recebido"
-      where.createdAt = {
-        gte: new Date(Date.now() - 5 * 60 * 1000), // últimos 5 min
-      }
-    } else if (dateFilter === "hoje") {
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      where.createdAt = { gte: today }
-    } else if (dateFilter === "semana") {
-      const weekAgo = new Date()
-      weekAgo.setDate(weekAgo.getDate() - 7)
-      where.createdAt = { gte: weekAgo }
-    }
-
-    const [orders, total] = await Promise.all([
+    const query = parseOrderQuery(request.nextUrl.searchParams)
+    const baseWhere = orderBaseWhere(query)
+    const where = query.status && !query.newOnly ? { ...baseWhere, status: query.status } : baseWhere
+    const total = await prisma.order.count({ where })
+    const pages = Math.max(1, Math.ceil(total / query.limit))
+    const page = Math.min(query.page, pages)
+    const [orders, grouped, revenue, globalTotal] = await Promise.all([
       prisma.order.findMany({
         where,
         include: { items: true },
-        orderBy: { createdAt: "desc" },
-        skip,
-        take: limit,
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        skip: (page - 1) * query.limit,
+        take: query.limit,
       }),
-      prisma.order.count({ where }),
+      query.withSummary ? prisma.order.groupBy({ by: ["status"], where: baseWhere, _count: true }) : null,
+      query.withSummary ? prisma.order.aggregate({ where: { AND: [baseWhere, { status: { not: "cancelado" } }] }, _sum: { total: true } }) : null,
+      query.withSummary ? prisma.order.count() : null,
     ])
-
-    return NextResponse.json({ orders, total })
+    return NextResponse.json({
+      orders, total, page, pages,
+      ...(grouped && revenue ? {
+        globalTotal,
+        summary: {
+          counts: Object.fromEntries(grouped.map((entry) => [entry.status, entry._count])),
+          total: grouped.reduce((sum, entry) => sum + entry._count, 0),
+          revenue: revenue._sum.total ?? 0,
+        },
+      } : {}),
+    }, { headers: { "Cache-Control": "no-store" } })
   } catch (error) {
     console.error("API GET /api/orders error:", error)
     return NextResponse.json(

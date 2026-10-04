@@ -1,615 +1,630 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { motion, AnimatePresence } from "framer-motion"
-import { Plus, Pencil, Trash2, Search, X, Eye, EyeOff, ImageIcon, Info } from "lucide-react"
-import Image from "next/image"
+import { useEffect, useRef, useState } from "react"
+import Link from "next/link"
+import { toast } from "sonner"
+import {
+  ChevronLeft,
+  ChevronRight,
+  Eye,
+  EyeOff,
+  Layers3,
+  LayoutGrid,
+  List,
+  Loader2,
+  Package,
+  Pencil,
+  Plus,
+  Search,
+  Tag,
+  Trash2,
+  UtensilsCrossed,
+  X,
+} from "lucide-react"
 import { useAdmin } from "@/lib/admin-context"
-import type { MenuItem, MenuItemVariant } from "@/lib/store-data"
+import { filterMenu, menuMoney, menuPrice, type MenuSort, type MenuStatus } from "@/lib/admin-menu"
+import type { MenuItem } from "@/lib/store-data"
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { MenuProductImage } from "./menu-product-image"
+import { MenuItemEditor } from "./menu-item-editor"
+
+const PAGE_SIZE = 12
 
 export function MenuManagement() {
   const { menuItems, categories, addMenuItem, updateMenuItem, deleteMenuItem } = useAdmin()
-  const [searchQuery, setSearchQuery] = useState("")
-  const [filterCategory, setFilterCategory] = useState("")
-  const [editingItem, setEditingItem] = useState<MenuItem | null>(null)
-  const [isAdding, setIsAdding] = useState(false)
-  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
+  const [search, setSearch] = useState("")
+  const [category, setCategory] = useState("")
+  const [status, setStatus] = useState<MenuStatus>("all")
+  const [sort, setSort] = useState<MenuSort>("name")
+  const [view, setView] = useState<"grid" | "list">("grid")
+  const [page, setPage] = useState(1)
+  const [editor, setEditor] = useState<{ item: MenuItem | null } | null>(null)
+  const [deleting, setDeleting] = useState<MenuItem | null>(null)
+  const [deleteError, setDeleteError] = useState("")
+  const [deleteBusy, setDeleteBusy] = useState(false)
+  const [pending, setPending] = useState<Set<string>>(new Set())
+  const heading = useRef<HTMLHeadingElement>(null)
+  const resultsHeading = useRef<HTMLHeadingElement>(null)
+  const returnTarget = useRef<HTMLElement | null>(null)
+  const active = menuItems.filter((item) => item.available !== false).length
+  const filtered = filterMenu(menuItems, categories, search, category, status, sort)
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const currentPage = Math.min(page, pageCount)
+  const visible = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+  const hasFilters = !!search || !!category || status !== "all"
 
-  const filteredItems = menuItems.filter((item) => {
-    const matchesSearch =
-      searchQuery === "" ||
-      item.name.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesCategory = filterCategory === "" || item.category === filterCategory
-    return matchesSearch && matchesCategory
-  })
+  useEffect(() => {
+    setPage((value) => Math.min(value, pageCount))
+  }, [pageCount])
+
+  function returnFocus() {
+    if (returnTarget.current?.isConnected) returnTarget.current.focus({ preventScroll: true })
+    else heading.current?.focus({ preventScroll: true })
+  }
+  function openEditor(item: MenuItem | null, target: HTMLElement) {
+    returnTarget.current = target
+    setEditor({ item })
+  }
+  function resetFilters() {
+    setSearch("")
+    setCategory("")
+    setStatus("all")
+    setPage(1)
+  }
+  async function toggleItem(item: MenuItem) {
+    if (pending.has(item.id)) return
+    setPending((value) => new Set(value).add(item.id))
+    try {
+      await updateMenuItem(item.id, { available: item.available === false })
+      toast.success(item.available === false ? `${item.name} ativado no cardápio.` : `${item.name} pausado.`)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível atualizar o produto.")
+    } finally {
+      setPending((value) => {
+        const next = new Set(value)
+        next.delete(item.id)
+        return next
+      })
+    }
+  }
+  async function confirmDelete() {
+    if (!deleting || deleteBusy) return
+    setDeleteBusy(true)
+    setDeleteError("")
+    try {
+      await deleteMenuItem(deleting.id)
+      setDeleting(null)
+      toast.success("Produto excluído do cardápio.")
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : "Não foi possível excluir. Tente novamente.")
+    } finally {
+      setDeleteBusy(false)
+    }
+  }
+  function changePage(next: number) {
+    setPage(next)
+    requestAnimationFrame(() => {
+      resultsHeading.current?.scrollIntoView({ block: "start", behavior: "instant" })
+      resultsHeading.current?.focus({ preventScroll: true })
+    })
+  }
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="menu-management flex min-w-0 flex-col gap-5 sm:gap-6">
+      <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
-          <h2 className="font-display text-2xl font-bold">Cardapio</h2>
-          <p className="text-sm text-muted-foreground mt-1">{menuItems.length} itens cadastrados</p>
+          <div className="mb-2 flex items-center gap-2 text-xs font-medium text-muted-foreground">
+            <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+            GESTÃO DE PRODUTOS
+          </div>
+          <h1
+            ref={heading}
+            tabIndex={-1}
+            className="font-display text-3xl font-bold tracking-tight outline-none sm:text-4xl"
+          >
+            Cardápio<span className="text-primary">.</span>
+          </h1>
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+            Seus produtos, preços e opções em um só lugar.
+          </p>
         </div>
         <button
-          onClick={() => { setIsAdding(true); setEditingItem(null) }}
-          className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
+          type="button"
+          disabled={!categories.length}
+          onClick={(event) => openEditor(null, event.currentTarget)}
+          className="flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
         >
-          <Plus className="h-4 w-4" />
-          Novo Item
+          <Plus aria-hidden="true" className="h-4 w-4" />
+          Novo produto
         </button>
+      </header>
+
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+        {[
+          {
+            label: "Produtos cadastrados",
+            value: menuItems.length,
+            icon: Package,
+            accent: "bg-primary/10 text-primary",
+          },
+          {
+            label: "Ativos no cardápio",
+            value: active,
+            icon: Eye,
+            accent: "bg-emerald-400/10 text-emerald-300",
+          },
+          {
+            label: "Produtos pausados",
+            value: menuItems.length - active,
+            icon: EyeOff,
+            accent: "bg-amber-400/10 text-amber-300",
+          },
+          {
+            label: "Com sabores ou opções",
+            value: menuItems.filter((item) => item.variants?.length).length,
+            icon: Layers3,
+            accent: "bg-violet-400/10 text-violet-300",
+          },
+        ].map((metric) => (
+          <div
+            key={metric.label}
+            className="dashboard-panel flex min-w-0 flex-col gap-3 rounded-2xl border border-border bg-card p-4 sm:flex-row sm:items-center sm:gap-4 sm:p-5"
+          >
+            <span
+              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${metric.accent}`}
+            >
+              <metric.icon aria-hidden="true" className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="text-[11px] leading-relaxed text-muted-foreground sm:text-xs">{metric.label}</p>
+              <p className="mt-1 font-display text-2xl font-semibold tabular-nums">{metric.value}</p>
+            </div>
+          </div>
+        ))}
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Buscar item..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full rounded-xl border border-border bg-card px-10 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-          />
+      {!categories.length && (
+        <div className="rounded-xl border border-amber-400/20 bg-amber-400/5 p-4 text-sm text-amber-100">
+          Cadastre uma categoria para começar a adicionar produtos.{" "}
+          <Link
+            href="/admin?section=categories"
+            className="inline-flex min-h-11 items-center font-semibold text-primary underline underline-offset-4"
+          >
+            Criar categoria
+          </Link>
         </div>
-        <select
-          value={filterCategory}
-          onChange={(e) => setFilterCategory(e.target.value)}
-          className="rounded-xl border border-border bg-card px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-        >
-          <option value="">Todas as categorias</option>
-          {categories.map((cat) => (
-            <option key={cat.id} value={cat.id}>{cat.name}</option>
-          ))}
-        </select>
-      </div>
+      )}
 
-      {/* Items Table */}
-      <div className="rounded-2xl border border-border bg-card overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-secondary/50">
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Item</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground hidden sm:table-cell">Categoria</th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground">Preco</th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground w-24">Acoes</th>
-              </tr>
-            </thead>
-            <tbody>
-              <AnimatePresence>
-                {filteredItems.map((item) => (
-                  <motion.tr
-                    key={item.id}
-                    layout
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="border-b border-border last:border-0 hover:bg-secondary/30 transition-colors"
-                  >
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <div className="relative h-10 w-10 flex-shrink-0 rounded-lg overflow-hidden bg-muted">
-                          <Image src={item.image} alt={item.name} fill className="object-cover" sizes="40px" quality={60} loading="lazy" />
-                        </div>
-                        <div className="min-w-0">
-                          <p className={`font-medium truncate ${item.available === false ? "text-muted-foreground" : ""}`}>
-                            {item.name}
-                            {item.available === false && (
-                              <span className="ml-1.5 text-xs font-normal text-amber-600">(indisponível)</span>
-                            )}
-                          </p>
-                          <p className="text-xs text-muted-foreground truncate max-w-[200px] lg:max-w-[360px] 2xl:max-w-[520px]">{item.description}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 hidden sm:table-cell">
-                      <span className="inline-flex rounded-lg bg-secondary px-2 py-1 text-xs font-medium">
-                        {categories.find((c) => c.id === item.category)?.name || item.category}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right font-bold text-primary whitespace-nowrap">
-                      {item.variants && item.variants.length > 0 ? (
-                        <span className="text-xs">
-                          {item.variants.length} sabor(es)
-                        </span>
-                      ) : (
-                        <>R$ {item.price.toFixed(2).replace(".", ",")}</>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-1">
-                        <button
-                          onClick={async () => {
-                            try {
-                              await updateMenuItem(item.id, { available: !(item.available !== false) })
-                            } catch (e) {
-                              alert(e instanceof Error ? e.message : "Erro ao atualizar")
-                            }
-                          }}
-                          className={`p-2 rounded-lg transition-colors ${
-                            item.available !== false
-                              ? "hover:bg-amber-500/10 text-muted-foreground hover:text-amber-600"
-                              : "bg-amber-500/15 text-amber-600 hover:bg-amber-500/20"
-                          }`}
-                          title={item.available !== false ? "Marcar como indisponível" : "Marcar como disponível"}
-                          aria-label={item.available !== false ? "Indisponível" : "Disponível"}
-                        >
-                          {item.available !== false ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-                        </button>
-                        <button
-                          onClick={() => { setEditingItem(item); setIsAdding(false) }}
-                          className="p-2 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
-                          aria-label={`Editar ${item.name}`}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </button>
-                        {deleteConfirm === item.id ? (
-                          <div className="flex items-center gap-1">
-                            <button
-                              onClick={async () => { await deleteMenuItem(item.id); setDeleteConfirm(null) }}
-                              className="px-2 py-1 rounded-lg bg-destructive text-destructive-foreground text-xs font-medium"
-                            >
-                              Sim
-                            </button>
-                            <button
-                              onClick={() => setDeleteConfirm(null)}
-                              className="px-2 py-1 rounded-lg bg-secondary text-xs font-medium"
-                            >
-                              Nao
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => setDeleteConfirm(item.id)}
-                            className="p-2 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                            aria-label={`Excluir ${item.name}`}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </motion.tr>
-                ))}
-              </AnimatePresence>
-            </tbody>
-          </table>
+      <section
+        aria-label="Filtros do cardápio"
+        className="dashboard-panel rounded-2xl border border-border bg-card p-3 sm:p-4"
+      >
+        <div className="flex flex-col gap-3 lg:flex-row">
+          <div className="relative min-w-0 flex-1">
+            <Search
+              aria-hidden="true"
+              className="pointer-events-none absolute left-3.5 top-3.5 h-4 w-4 text-muted-foreground"
+            />
+            <input
+              aria-label="Buscar produtos"
+              placeholder="Buscar produto, descrição ou sabor…"
+              value={search}
+              onChange={(event) => {
+                setSearch(event.target.value)
+                setPage(1)
+              }}
+              className="h-11 w-full min-w-0 rounded-xl border border-border bg-background pl-10 pr-11 text-sm placeholder:text-muted-foreground"
+            />
+            {search && (
+              <button
+                type="button"
+                aria-label="Limpar busca"
+                onClick={() => {
+                  setSearch("")
+                  setPage(1)
+                }}
+                className="dashboard-icon-button absolute right-0 top-0 h-11 w-11 rounded-xl text-muted-foreground"
+              >
+                <X aria-hidden="true" className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:w-[410px]">
+            <select
+              aria-label="Filtrar por categoria"
+              value={category}
+              onChange={(event) => {
+                setCategory(event.target.value)
+                setPage(1)
+              }}
+              className="h-11 w-full min-w-0 rounded-xl border border-border bg-background px-3 text-xs"
+            >
+              <option value="">Todas as categorias</option>
+              {categories.map((entry) => (
+                <option key={entry.id} value={entry.id}>
+                  {entry.name} ({menuItems.filter((item) => item.category === entry.id).length})
+                </option>
+              ))}
+            </select>
+            <select
+              aria-label="Ordenar produtos"
+              value={sort}
+              onChange={(event) => {
+                setSort(event.target.value as MenuSort)
+                setPage(1)
+              }}
+              className="h-11 w-full min-w-0 rounded-xl border border-border bg-background px-3 text-xs"
+            >
+              <option value="name">Nome: A a Z</option>
+              <option value="name-desc">Nome: Z a A</option>
+              <option value="price">Menor preço primeiro</option>
+              <option value="price-desc">Maior preço primeiro</option>
+            </select>
+          </div>
         </div>
-        {filteredItems.length === 0 && (
-          <div className="p-8 text-center text-muted-foreground text-sm">
-            Nenhum item encontrado.
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
+          <div role="group" aria-label="Disponibilidade dos produtos" className="flex flex-wrap gap-1">
+            {(
+              [
+                { value: "all", label: "Todos", count: menuItems.length },
+                { value: "active", label: "Ativos", count: active },
+                { value: "paused", label: "Pausados", count: menuItems.length - active },
+              ] as const
+            ).map((entry) => (
+              <button
+                type="button"
+                key={entry.value}
+                aria-pressed={status === entry.value}
+                onClick={() => {
+                  setStatus(entry.value)
+                  setPage(1)
+                }}
+                className={`inline-flex min-h-11 items-center gap-2 rounded-lg px-3 text-xs font-medium ${status === entry.value ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-secondary hover:text-foreground"}`}
+              >
+                {entry.label}
+                <span
+                  className={`rounded-md px-1.5 py-0.5 text-[10px] tabular-nums ${status === entry.value ? "bg-primary/10" : "bg-secondary"}`}
+                >
+                  {entry.count}
+                </span>
+              </button>
+            ))}
+          </div>
+          {hasFilters && (
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-lg px-3 text-xs text-muted-foreground hover:text-foreground"
+            >
+              <X aria-hidden="true" className="h-3.5 w-3.5" />
+              Limpar filtros
+            </button>
+          )}
+        </div>
+      </section>
+
+      <section aria-labelledby="menu-results-heading" className="min-w-0">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <h2
+              ref={resultsHeading}
+              id="menu-results-heading"
+              tabIndex={-1}
+              className="scroll-mt-24 text-sm font-semibold outline-none"
+            >
+              {category
+                ? (categories.find((entry) => entry.id === category)?.name ?? "Produtos")
+                : "Seus produtos"}
+            </h2>
+            <p role="status" className="mt-1 text-xs text-muted-foreground">
+              {filtered.length
+                ? `${(currentPage - 1) * PAGE_SIZE + 1}–${Math.min(currentPage * PAGE_SIZE, filtered.length)} de ${filtered.length} ${filtered.length === 1 ? "produto" : "produtos"}${hasFilters ? (filtered.length === 1 ? " encontrado" : " encontrados") : ""}`
+                : "Nenhum produto encontrado"}
+            </p>
+          </div>
+          <div
+            role="group"
+            aria-label="Visualização dos produtos"
+            className="flex shrink-0 gap-1 rounded-xl border border-border bg-card p-1"
+          >
+            <button
+              type="button"
+              aria-label="Visualizar em cards"
+              aria-pressed={view === "grid"}
+              onClick={() => setView("grid")}
+              className={`dashboard-icon-button h-10 w-10 rounded-lg ${view === "grid" ? "bg-secondary text-primary" : "text-muted-foreground"}`}
+            >
+              <LayoutGrid aria-hidden="true" className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              aria-label="Visualizar em lista"
+              aria-pressed={view === "list"}
+              onClick={() => setView("list")}
+              className={`dashboard-icon-button h-10 w-10 rounded-lg ${view === "list" ? "bg-secondary text-primary" : "text-muted-foreground"}`}
+            >
+              <List aria-hidden="true" className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+        {visible.length ? (
+          <div
+            className={
+              view === "grid"
+                ? "grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
+                : "flex flex-col gap-3"
+            }
+          >
+            {visible.map((item, index) => (
+              <MenuProductCard
+                key={item.id}
+                item={item}
+                category={categories.find((entry) => entry.id === item.category)?.name ?? "Sem categoria"}
+                view={view}
+                busy={pending.has(item.id)}
+                eager={index < 3}
+                onToggle={() => void toggleItem(item)}
+                onEdit={(target) => openEditor(item, target)}
+                onDelete={(target) => {
+                  returnTarget.current = target
+                  setDeleting(item)
+                  setDeleteError("")
+                }}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="dashboard-panel flex flex-col items-center rounded-2xl border border-dashed border-border bg-card px-5 py-12 text-center">
+            <span className="mb-4 rounded-2xl bg-secondary p-4">
+              <UtensilsCrossed aria-hidden="true" className="h-7 w-7 text-muted-foreground" />
+            </span>
+            <h3 className="font-semibold">
+              {menuItems.length ? "Não encontramos esse produto" : "Seu cardápio começa aqui"}
+            </h3>
+            <p className="mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">
+              {menuItems.length
+                ? "Tente outro nome, sabor ou ajuste os filtros para encontrar o que procura."
+                : "Adicione seu primeiro produto com foto, descrição e preço."}
+            </p>
+            {menuItems.length ? (
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="mt-5 min-h-11 rounded-xl border border-border px-4 text-sm font-medium hover:bg-secondary"
+              >
+                Limpar filtros
+              </button>
+            ) : (
+              <button
+                type="button"
+                disabled={!categories.length}
+                onClick={(event) => openEditor(null, event.currentTarget)}
+                className="mt-5 min-h-11 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+              >
+                Adicionar primeiro produto
+              </button>
+            )}
           </div>
         )}
-      </div>
-
-      {/* Add/Edit Modal */}
-      <AnimatePresence>
-        {(isAdding || editingItem) && (
-          <MenuItemModal
-            item={editingItem}
-            categories={categories}
-            onSave={async (item) => {
-              try {
-                if (editingItem) {
-                  await updateMenuItem(editingItem.id, item)
-                } else {
-                  await addMenuItem({ ...item, id: `item-${Date.now()}` })
-                }
-                setEditingItem(null)
-                setIsAdding(false)
-              } catch {
-                // erro ao salvar
-              }
-            }}
-            onClose={() => { setEditingItem(null); setIsAdding(false) }}
-          />
+        {pageCount > 1 && (
+          <nav
+            aria-label="Paginação do cardápio"
+            className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-3 sm:px-4"
+          >
+            <span className="text-xs text-muted-foreground">
+              Página <span className="font-medium text-foreground">{currentPage}</span> de {pageCount}
+            </span>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={currentPage === 1}
+                onClick={() => changePage(currentPage - 1)}
+                className="orders-button inline-flex min-h-11 items-center gap-1 rounded-lg border border-border px-3 text-xs font-medium disabled:opacity-40"
+              >
+                <ChevronLeft aria-hidden="true" className="h-4 w-4" />
+                Anterior
+              </button>
+              <button
+                type="button"
+                disabled={currentPage === pageCount}
+                onClick={() => changePage(currentPage + 1)}
+                className="orders-button inline-flex min-h-11 items-center gap-1 rounded-lg border border-border px-3 text-xs font-medium disabled:opacity-40"
+              >
+                Próxima
+                <ChevronRight aria-hidden="true" className="h-4 w-4" />
+              </button>
+            </div>
+          </nav>
         )}
-      </AnimatePresence>
+      </section>
+
+      {editor && (
+        <MenuItemEditor
+          item={editor.item}
+          categories={categories}
+          onClose={() => setEditor(null)}
+          onReturnFocus={returnFocus}
+          onSave={async (item) => {
+            if (editor.item) await updateMenuItem(editor.item.id, item)
+            else await addMenuItem({ ...item, id: crypto.randomUUID() })
+            toast.success(editor.item ? "Produto atualizado." : "Produto criado no cardápio.")
+            setEditor(null)
+          }}
+        />
+      )}
+
+      <AlertDialog
+        open={!!deleting}
+        onOpenChange={(open) => {
+          if (!open && !deleteBusy) setDeleting(null)
+        }}
+      >
+        <AlertDialogContent
+          className="admin-menu-dialog w-[calc(100%-2rem)] max-h-[90dvh] overflow-y-auto rounded-2xl bg-card p-5 sm:p-6"
+          onCloseAutoFocus={(event) => {
+            event.preventDefault()
+            returnFocus()
+          }}
+          onEscapeKeyDown={(event) => {
+            if (deleteBusy) event.preventDefault()
+          }}
+        >
+          <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-rose-400/10 text-rose-300">
+            <Trash2 aria-hidden="true" className="h-6 w-6" />
+          </span>
+          <AlertDialogTitle className="font-display text-xl">Excluir produto?</AlertDialogTitle>
+          <AlertDialogDescription className="text-sm leading-relaxed">
+            {deleting?.name} e suas opções serão removidos do cardápio. Essa ação não pode ser desfeita. Para
+            suspender as vendas temporariamente, use a opção Pausar.
+          </AlertDialogDescription>
+          {deleteError && (
+            <p role="alert" className="rounded-xl bg-rose-400/10 p-3 text-sm text-rose-300">
+              {deleteError}
+            </p>
+          )}
+          <div className="mt-2 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <AlertDialogCancel
+              disabled={deleteBusy}
+              className="m-0 min-h-11 rounded-xl border-border bg-transparent text-sm"
+            >
+              Voltar
+            </AlertDialogCancel>
+            <button
+              type="button"
+              disabled={deleteBusy}
+              onClick={() => void confirmDelete()}
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-rose-500 px-4 text-sm font-semibold text-white hover:bg-rose-600 disabled:opacity-50"
+            >
+              {deleteBusy && <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />}
+              {deleteBusy ? "Excluindo…" : "Excluir produto"}
+            </button>
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
 
-function MenuItemModal({
+function MenuProductCard({
   item,
-  categories,
-  onSave,
-  onClose,
+  category,
+  view,
+  busy,
+  eager,
+  onToggle,
+  onEdit,
+  onDelete,
 }: {
-  item: MenuItem | null
-  categories: { id: string; name: string }[]
-  onSave: (data: MenuItem) => void
-  onClose: () => void
+  item: MenuItem
+  category: string
+  view: "grid" | "list"
+  busy: boolean
+  eager: boolean
+  onToggle: () => void
+  onEdit: (target: HTMLElement) => void
+  onDelete: (target: HTMLElement) => void
 }) {
-  const [form, setForm] = useState<MenuItem>(
-    item
-      ? { ...item, variants: item.variants || [] }
-      : {
-          id: "",
-          name: "",
-          description: "",
-          price: 0,
-          image: "/images/hero-bg.jpg",
-          category: categories[0]?.id || "",
-          available: true,
-          variants: [],
-        }
-  )
-  const [showSaveHint, setShowSaveHint] = useState(false)
-
-  useEffect(() => {
-    setShowSaveHint(true)
-    const timer = setTimeout(() => setShowSaveHint(false), 7000)
-    return () => clearTimeout(timer)
-  }, [])
-
-  useEffect(() => {
-    if (item) {
-      setForm({ ...item, variants: item.variants || [] })
-    } else {
-      setForm({
-        id: "",
-        name: "",
-        description: "",
-        price: 0,
-        image: "/images/hero-bg.jpg",
-        category: categories[0]?.id || "",
-        available: true,
-        variants: [],
-      })
-    }
-  }, [item, categories])
-
-  function addVariant() {
-    setForm((prev) => ({
-      ...prev,
-      variants: [...(prev.variants || []), { id: "", name: "", price: 0, available: true }],
-    }))
-  }
-
-  function updateVariant(index: number, data: Partial<MenuItemVariant>) {
-    setForm((prev) => {
-      const v = [...(prev.variants || [])]
-      v[index] = { ...v[index], ...data } as MenuItemVariant
-      return { ...prev, variants: v }
-    })
-  }
-
-  function removeVariant(index: number) {
-    setForm((prev) => ({
-      ...prev,
-      variants: prev.variants?.filter((_, i) => i !== index) || [],
-    }))
-  }
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    const price =
-      form.variants && form.variants.length > 0
-        ? Math.min(...form.variants.map((v) => v.price))
-        : form.price
-    onSave({ ...form, price })
-  }
-
+  const paused = item.available === false
+  const options = item.variants?.length ?? 0
+  const activeOptions = item.variants?.filter((variant) => variant.available).length ?? 0
+  const compact = view === "list"
   return (
-    <>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={onClose}
-        className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
+    <article
+      className={`dashboard-panel group min-w-0 overflow-hidden rounded-2xl border border-border bg-card transition-colors hover:border-primary/25 ${compact ? "flex flex-col sm:flex-row sm:items-center sm:gap-4 sm:p-4" : "flex flex-col"}`}
+    >
+      <MenuProductImage
+        src={item.image}
+        name={item.name}
+        eager={eager}
+        sizes={compact ? "96px" : "(max-width: 639px) 100vw, (max-width: 1279px) 50vw, 33vw"}
+        className={`${compact ? "hidden h-24 w-24 shrink-0 rounded-xl sm:block" : "aspect-[16/9] w-full border-b border-border"} ${paused ? "opacity-60 grayscale-[35%]" : ""}`}
       />
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        transition={{ type: "spring", damping: 25, stiffness: 300 }}
-        className="modal-panel-md lg:max-w-4xl"
-      >
-        <div className="flex items-center justify-between px-5 py-4 lg:px-8 lg:py-5 border-b border-border sticky top-0 bg-background z-10">
+      <div className={`min-w-0 flex-1 ${compact ? "p-4 sm:p-0" : "flex flex-1 flex-col p-4 sm:p-5"}`}>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <span className="inline-flex max-w-full items-center gap-1.5 rounded-md bg-secondary px-2 py-1 text-[10px] font-medium text-muted-foreground">
+            <Tag aria-hidden="true" className="h-3 w-3 shrink-0" />
+            <span className="break-words">{category}</span>
+          </span>
+          <span
+            className={`inline-flex items-center gap-1.5 text-[10px] font-medium ${paused ? "text-amber-300" : "text-emerald-300"}`}
+          >
+            <span className={`h-1.5 w-1.5 rounded-full ${paused ? "bg-amber-300" : "bg-emerald-400"}`} />
+            {paused ? "Pausado" : "Ativo"}
+          </span>
+        </div>
+        <h3
+          className={`break-words text-sm font-semibold leading-snug ${!compact ? "line-clamp-2 min-h-[40px]" : ""}`}
+        >
+          {item.name}
+        </h3>
+        <p
+          className={`mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground ${!compact ? "min-h-[36px]" : ""}`}
+        >
+          {item.description}
+        </p>
+        <div
+          className={`mt-4 flex flex-wrap items-end justify-between gap-2 ${!compact ? "mt-auto pt-4" : ""}`}
+        >
           <div>
-            <h3 className="font-display text-lg lg:text-2xl font-bold">
-              {item ? "Editar Item" : "Novo Item"}
-            </h3>
-            <p className="text-xs lg:text-sm text-muted-foreground mt-0.5">
-              {item ? `Altere as informacoes de ${item.name}` : "Preencha as informacoes do novo item"}
+            {options > 0 && activeOptions > 0 && (
+              <p className="mb-0.5 text-[10px] text-muted-foreground">A partir de</p>
+            )}
+            <p className="font-display text-xl font-semibold tabular-nums text-primary">
+              {menuMoney(menuPrice(item))}
             </p>
           </div>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-secondary transition-colors">
-            <X className="h-5 w-5" />
-          </button>
+          <span
+            className={`text-[10px] ${options && !activeOptions ? "text-amber-300" : "text-muted-foreground"}`}
+          >
+            {options ? `${activeOptions}/${options} opções ativas` : "Preço único"}
+          </span>
         </div>
-
-        <form onSubmit={handleSubmit} className="p-5 lg:p-8">
-          <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-6 lg:gap-8">
-            {/* Coluna esquerda: imagem e preview */}
-            <div className="flex flex-col gap-4">
-              <div className="relative aspect-square w-full max-w-[280px] mx-auto lg:max-w-none overflow-hidden rounded-2xl border-2 border-dashed border-border bg-secondary/30">
-                {form.image ? (
-                  <Image
-                    src={form.image}
-                    alt={form.name || "Preview do item"}
-                    fill
-                    className="object-cover"
-                    sizes="300px"
-                    onError={(e) => { (e.target as HTMLImageElement).style.display = "none" }}
-                  />
-                ) : (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-muted-foreground">
-                    <ImageIcon className="h-10 w-10" />
-                    <span className="text-xs">Sem imagem</span>
-                  </div>
-                )}
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-foreground mb-1.5 block">URL da Imagem</label>
-                <input
-                  type="text"
-                  value={form.image}
-                  onChange={(e) => setForm({ ...form, image: e.target.value })}
-                  className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-shadow"
-                  placeholder="/images/item.jpg"
-                />
-                <p className="mt-1.5 text-[11px] text-muted-foreground leading-relaxed">
-                  Caminho em /public ou URL externa. O preview aparece acima.
-                </p>
-              </div>
-
-              {/* Preview de como aparece no cardapio */}
-              <div className="hidden lg:block rounded-2xl border border-border bg-card p-4">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-3">Preview no cardapio</p>
-                <div className="flex gap-3">
-                  <div className="relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-xl bg-muted">
-                    {form.image && (
-                      <Image src={form.image} alt="" fill className="object-cover" sizes="80px" />
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-sm leading-tight truncate">{form.name || "Nome do item"}</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground line-clamp-2">{form.description || "Descricao do item"}</p>
-                    <p className="mt-1 font-display font-bold text-sm text-primary">
-                      R$ {(form.variants && form.variants.length > 0
-                        ? Math.min(...form.variants.map((v) => v.price))
-                        : form.price || 0).toFixed(2).replace(".", ",")}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <label className={`flex items-center justify-between gap-3 rounded-2xl border px-4 py-3.5 cursor-pointer transition-colors ${
-                form.available !== false
-                  ? "border-emerald-500/40 bg-emerald-500/10"
-                  : "border-border bg-card"
-              }`}>
-                <div className="flex items-center gap-2.5">
-                  {form.available !== false ? (
-                    <Eye className="h-4 w-4 text-emerald-500" />
-                  ) : (
-                    <EyeOff className="h-4 w-4 text-muted-foreground" />
-                  )}
-                  <div>
-                    <p className="text-sm font-semibold">Disponivel no cardapio</p>
-                    <p className="text-[11px] text-muted-foreground">
-                      {form.available !== false ? "Visivel para os clientes" : "Oculto dos clientes"}
-                    </p>
-                  </div>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={form.available !== false}
-                  onChange={(e) => setForm({ ...form, available: e.target.checked })}
-                  className="h-5 w-5 rounded accent-primary"
-                />
-              </label>
-            </div>
-
-            {/* Coluna direita: campos */}
-            <div className="flex flex-col gap-5">
-              <div>
-                <label className="text-xs font-semibold text-foreground mb-1.5 block">Nome do item *</label>
-                <input
-                  type="text"
-                  required
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-shadow"
-                  placeholder="Ex: Coxinha de Frango"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-foreground mb-1.5 block">Descricao *</label>
-                <textarea
-                  required
-                  value={form.description}
-                  onChange={(e) => setForm({ ...form, description: e.target.value })}
-                  rows={3}
-                  className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-shadow resize-none leading-relaxed"
-                  placeholder="Descreva o item de forma atrativa para o cliente"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-semibold text-foreground mb-1.5 block">Preco base (R$)</label>
-                  <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-muted-foreground font-medium">R$</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={form.price || ""}
-                      onChange={(e) => setForm({ ...form, price: parseFloat(e.target.value) || 0 })}
-                      className="w-full rounded-xl border border-border bg-card pl-11 pr-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-shadow"
-                      placeholder="0,00"
-                    />
-                  </div>
-                  <p className="mt-1 text-[11px] text-muted-foreground">Usado quando nao ha variantes</p>
-                </div>
-
-                <div>
-                  <label className="text-xs font-semibold text-foreground mb-1.5 block">Categoria *</label>
-                  <select
-                    required
-                    value={form.category}
-                    onChange={(e) => setForm({ ...form, category: e.target.value })}
-                    className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-shadow"
-                  >
-                    {categories.map((cat) => (
-                      <option key={cat.id} value={cat.id}>{cat.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Variantes */}
-              <div className="rounded-2xl border border-border bg-secondary/20 p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <p className="text-sm font-semibold">Sabores / Variantes</p>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">
-                      {form.variants?.length
-                        ? `${form.variants.length} variante${form.variants.length > 1 ? "s" : ""} cadastrada${form.variants.length > 1 ? "s" : ""}`
-                        : "Nenhuma variante — sera usado o preco base"}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={addVariant}
-                    className="flex items-center gap-1.5 rounded-lg bg-primary/10 px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/20 transition-colors"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    Adicionar
-                  </button>
-                </div>
-                {(form.variants || []).length > 0 && (
-                  <div className="space-y-2 max-h-48 lg:max-h-64 overflow-y-auto pr-1">
-                    {(form.variants || []).map((v, i) => (
-                      <div key={i} className="flex gap-2 items-center rounded-xl border border-border p-2.5 bg-card">
-                        <input
-                          type="text"
-                          value={v.name}
-                          onChange={(e) => updateVariant(i, { name: e.target.value })}
-                          placeholder="Nome (ex: Tradicional)"
-                          className="flex-1 min-w-0 rounded-lg border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                        />
-                        <div className="relative flex-shrink-0">
-                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={v.price || ""}
-                            onChange={(e) => updateVariant(i, { price: parseFloat(e.target.value) || 0 })}
-                            placeholder="0,00"
-                            className="w-24 lg:w-28 rounded-lg border border-border bg-background pl-8 pr-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-                          />
-                        </div>
-                        <label className="flex items-center gap-1.5 text-xs font-medium whitespace-nowrap cursor-pointer flex-shrink-0">
-                          <input
-                            type="checkbox"
-                            checked={v.available}
-                            onChange={(e) => updateVariant(i, { available: e.target.checked })}
-                            className="h-4 w-4 rounded accent-primary"
-                          />
-                          <span className="hidden sm:inline">Disp.</span>
-                        </label>
-                        <button
-                          type="button"
-                          onClick={() => removeVariant(i)}
-                          className="p-2 rounded-lg hover:bg-destructive/15 text-destructive transition-colors flex-shrink-0"
-                          aria-label="Remover variante"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Acoes */}
-          <div className="flex gap-3 pt-6 mt-6 border-t border-border lg:justify-end">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 lg:flex-none lg:w-40 rounded-xl border border-border bg-card py-3 text-sm font-semibold hover:bg-secondary transition-colors"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              className="flex-1 lg:flex-none lg:w-40 rounded-xl bg-primary py-3 text-sm font-bold text-primary-foreground hover:bg-primary/90 transition-colors"
-            >
-              {item ? "Salvar alteracoes" : "Criar item"}
-            </button>
-          </div>
-        </form>
-
-        {/* Aviso flutuante ao abrir o modal */}
-        <AnimatePresence>
-          {showSaveHint && (
-            <motion.div
-              initial={{ opacity: 0, y: 32, scale: 0.8, rotate: -3 }}
-              animate={{
-                opacity: 1,
-                y: 0,
-                scale: 1,
-                rotate: [0, -1.5, 1.5, -1, 0],
-              }}
-              exit={{ opacity: 0, y: 16, scale: 0.9 }}
-              transition={{
-                type: "spring",
-                damping: 14,
-                stiffness: 260,
-                rotate: { delay: 0.35, duration: 0.6, ease: "easeInOut" },
-              }}
-              className="absolute bottom-8 left-6 sm:left-10 z-20 w-[calc(100%-4rem)] sm:w-[calc(100%-6rem)] max-w-md"
-            >
-              {/* Borda animada */}
-              <div className="hint-border-spin absolute -inset-[2px] rounded-[18px]" />
-              <div className="relative flex items-start gap-3 rounded-2xl bg-card p-4 shadow-lg shadow-black/20">
-                <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  transition={{ delay: 0.25, type: "spring", damping: 10, stiffness: 300 }}
-                  className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-primary/15"
-                >
-                  <Info className="h-4 w-4 text-primary" />
-                </motion.div>
-                <div className="min-w-0 flex-1">
-                  <motion.p
-                    initial={{ opacity: 0, x: -8 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.15 }}
-                    className="text-sm font-semibold leading-snug"
-                  >
-                    Oi! Não esqueça de salvar!
-                  </motion.p>
-                  <motion.p
-                    initial={{ opacity: 0, x: -8 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.28 }}
-                    className="mt-0.5 text-xs text-muted-foreground leading-relaxed"
-                  >
-                    Role a tela ate o final para ver os botoes. As alterações so serão aplicadas ao clicar em <span className="font-semibold text-foreground">{item ? "Salvar alteracoes" : "Criar item"}</span>.
-                  </motion.p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowSaveHint(false)}
-                  className="p-1.5 -m-1 rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors flex-shrink-0"
-                  aria-label="Fechar aviso"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            </motion.div>
+      </div>
+      <div
+        className={`flex flex-wrap gap-2 border-t border-border p-3 ${compact ? "sm:w-[220px] sm:shrink-0 sm:border-0 sm:p-0" : ""}`}
+      >
+        <button
+          type="button"
+          disabled={busy}
+          onClick={onToggle}
+          aria-label={`${paused ? "Ativar" : "Pausar"} ${item.name}`}
+          className={`orders-button inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg border border-border px-2 text-xs font-medium disabled:opacity-50 ${paused ? "text-emerald-300" : "text-muted-foreground"}`}
+        >
+          {busy ? (
+            <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
+          ) : paused ? (
+            <Eye aria-hidden="true" className="h-4 w-4" />
+          ) : (
+            <EyeOff aria-hidden="true" className="h-4 w-4" />
           )}
-        </AnimatePresence>
-      </motion.div>
-    </>
+          {paused ? "Ativar" : "Pausar"}
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={(event) => onEdit(event.currentTarget)}
+          aria-label={`Editar ${item.name}`}
+          className="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg bg-primary/10 px-2 text-xs font-semibold text-primary transition-colors hover:bg-primary/20 disabled:opacity-50"
+        >
+          <Pencil aria-hidden="true" className="h-3.5 w-3.5" />
+          Editar
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={(event) => onDelete(event.currentTarget)}
+          aria-label={`Excluir ${item.name}`}
+          className="dashboard-icon-button h-11 w-11 shrink-0 rounded-lg text-muted-foreground hover:bg-rose-400/10 hover:text-rose-300 disabled:opacity-50"
+        >
+          <Trash2 aria-hidden="true" className="h-4 w-4" />
+        </button>
+      </div>
+    </article>
   )
 }

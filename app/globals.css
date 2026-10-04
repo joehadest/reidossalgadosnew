@@ -99,6 +99,106 @@
 }
 
 @layer components {
+  .admin-workspace,
+  .admin-mobile-navigation,
+  .admin-menu-dialog,
+  .admin-orders-dialog {
+    --background: 225 17% 7%;
+    --foreground: 220 14% 94%;
+    --card: 225 14% 10%;
+    --card-foreground: 220 14% 94%;
+    --secondary: 225 12% 15%;
+    --muted: 225 12% 15%;
+    --muted-foreground: 220 9% 64%;
+    --border: 225 11% 18%;
+    color: hsl(var(--foreground));
+  }
+
+  .admin-workspace {
+    background-image: radial-gradient(ellipse at 90% 0%, hsl(48 100% 50% / 0.025), transparent 35%);
+  }
+
+  .dashboard-panel {
+    box-shadow: 0 3px 18px rgb(0 0 0 / 0.08);
+  }
+
+  .orders-button {
+    @apply transition-colors hover:bg-secondary;
+  }
+
+  .orders-section option,
+  .categories-section option,
+  .store-info-section option,
+  .delivery-section option,
+  .payments-section option,
+  .counter-workspace option,
+  .menu-management option,
+  .admin-menu-dialog option,
+  .admin-orders-dialog option {
+    background: hsl(var(--card));
+    color: hsl(var(--foreground));
+  }
+
+  .orders-detail-dialog > button:last-child {
+    @apply right-3 top-5 flex h-11 w-11 items-center justify-center rounded-xl bg-secondary/50;
+  }
+
+  .menu-editor-dialog > button:last-child {
+    @apply right-3 top-4 flex h-11 w-11 items-center justify-center rounded-xl bg-secondary/50;
+  }
+
+  .dashboard-metric {
+    transition: border-color 160ms ease, background-color 160ms ease;
+  }
+
+  .dashboard-metric:hover {
+    border-color: hsl(var(--primary) / 0.3);
+    background-color: hsl(225 14% 12%);
+  }
+
+  .dashboard-icon-button {
+    @apply inline-flex items-center justify-center transition-colors hover:bg-secondary;
+  }
+
+  .dashboard-order,
+  .dashboard-quick-link,
+  .dashboard-secondary-button {
+    @apply transition-colors hover:bg-secondary/50;
+  }
+
+  .admin-workspace :is(button, a, select, input, textarea):focus-visible,
+  .admin-mobile-navigation :is(button, a):focus-visible,
+  .admin-menu-dialog :is(button, a, select, input, textarea):focus-visible,
+  .admin-orders-dialog :is(button, a, select, input):focus-visible {
+    outline: 2px solid hsl(var(--primary));
+    outline-offset: 3px;
+  }
+
+  .admin-skip-link {
+    @apply fixed left-4 top-4 z-[100] rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground;
+    transform: translateY(-150%);
+  }
+
+  .admin-skip-link:focus {
+    transform: translateY(0);
+  }
+
+  .admin-mobile-navigation > button:last-child {
+    @apply right-3 top-6 flex h-11 w-11 items-center justify-center rounded-lg;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .admin-workspace *,
+    .admin-mobile-navigation *,
+    .admin-menu-dialog,
+    .admin-menu-dialog *,
+    .admin-orders-dialog,
+    .admin-orders-dialog * {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
   .modal-panel {
     @apply fixed z-50 flex flex-col overflow-y-auto border border-border bg-background;
     @apply inset-x-0 bottom-0 max-h-[92dvh] w-full rounded-t-2xl;

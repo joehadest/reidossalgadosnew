@@ -20,7 +20,7 @@ export async function GET() {
     }
 
     const categories = await prisma.category.findMany({
-      orderBy: { sortOrder: "asc" },
+      orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
     })
 
     const menuItems = await prisma.menuItem.findMany({

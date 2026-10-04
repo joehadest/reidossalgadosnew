@@ -1,419 +1,159 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
-import { motion, AnimatePresence } from "framer-motion"
-import { ShoppingBag, Phone, MapPin, X, RefreshCw, Printer, Trash2, Trash } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
+import { CheckCheck, ChevronLeft, ChevronRight, CircleAlert, Clock3, Filter, MoreHorizontal, RefreshCw, Search, ShoppingBag, Trash2, Truck, X } from "lucide-react"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { ORDER_STATUSES, orderMoney, type AdminOrder } from "@/lib/admin-orders"
 import { useAdmin } from "@/lib/admin-context"
 import { printOrderThermal } from "@/lib/thermal-print"
+import { OrderCard } from "./order-card"
+import { OrderDetailsDialog } from "./order-details-dialog"
+import { OrderConfirmationDialog, type OrderConfirmation } from "./order-confirmation-dialog"
+import { useOrders } from "./use-orders"
 
-const STATUS_LABELS: Record<string, string> = {
-  recebido: "Recebido",
-  confirmado: "Confirmado",
-  preparando: "Em preparação",
-  entrega: "Saiu para entrega",
-  entregue: "Entregue",
-  cancelado: "Cancelado",
-}
-
-const STATUS_OPTIONS = [
-  { value: "recebido", label: "Recebido" },
-  { value: "confirmado", label: "Confirmado" },
-  { value: "preparando", label: "Em preparação" },
-  { value: "entrega", label: "Saiu para entrega" },
-  { value: "entregue", label: "Entregue" },
-  { value: "cancelado", label: "Cancelado" },
+const PAGE_SIZE = 12
+const PERIODS = [
+  { value: "todos", label: "Todo o histórico" },
+  { value: "hoje", label: "Hoje" },
+  { value: "semana", label: "Últimos 7 dias" },
+  { value: "mes", label: "Últimos 30 dias" },
 ]
-
-interface OrderItem {
-  id: string
-  itemId: string
-  variantId: string | null
-  name: string
-  variantName: string | null
-  price: number
-  quantity: number
-}
-
-interface Order {
-  id: string
-  name: string
-  phone: string
-  address: string
-  neighborhood: string
-  complement: string | null
-  paymentMethod: string
-  changeFor: string | null
-  subtotal: number
-  deliveryFee: number
-  total: number
-  status: string
-  createdAt: string
-  items: OrderItem[]
-}
 
 export function OrdersSection() {
   const { store } = useAdmin()
-  const [orders, setOrders] = useState<Order[]>([])
-  const [loading, setLoading] = useState(true)
-  const [statusFilter, setStatusFilter] = useState<string>("")
-  const [dateFilter, setDateFilter] = useState<string>("todos")
-  const [detailOrder, setDetailOrder] = useState<Order | null>(null)
-  const [updatingId, setUpdatingId] = useState<string | null>(null)
-  const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [deletingAll, setDeletingAll] = useState(false)
-
-  const fetchOrders = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true)
-    try {
-      const params = new URLSearchParams()
-      if (statusFilter) params.set("status", statusFilter)
-      if (dateFilter !== "todos") params.set("date", dateFilter)
-      const res = await fetch(`/api/orders?${params}`)
-      if (!res.ok) throw new Error("Erro ao carregar pedidos")
-      const data = await res.json()
-      const newOrders = data.orders || []
-      setOrders(newOrders)
-      setDetailOrder((prev) => {
-        if (!prev) return null
-        const updated = newOrders.find((o: Order) => o.id === prev.id)
-        return updated ?? prev
-      })
-    } catch {
-      if (!silent) setOrders([])
-    } finally {
-      if (!silent) setLoading(false)
-    }
-  }, [statusFilter, dateFilter])
+  const [filters, setFilters] = useState({ status: "", date: "todos", search: "", page: 1 })
+  const [search, setSearch] = useState("")
+  const [confirmation, setConfirmation] = useState<OrderConfirmation | null>(null)
+  const detailTrigger = useRef<HTMLElement | null>(null)
+  const confirmationTrigger = useRef<HTMLElement | null>(null)
+  const query = new URLSearchParams({
+    status: filters.status, date: filters.date, q: filters.search,
+    page: String(filters.page), limit: String(PAGE_SIZE), summary: "true",
+  }).toString()
+  const { result, error, refreshing, refresh, selected, setSelected, busy, changeStatus, remove, removeAll } = useOrders(query)
+  const loading = !result && !error
+  const disabled = !!busy
+  const counts = result?.summary.counts ?? {}
+  const filtered = !!(filters.status || filters.date !== "todos" || search.trim())
+  const page = result?.page ?? filters.page
+  const totalPages = result?.pages ?? 1
 
   useEffect(() => {
-    fetchOrders()
-  }, [fetchOrders])
+    const timer = setTimeout(() => {
+      setFilters((previous) => previous.search === search.trim() ? previous : { ...previous, search: search.trim(), page: 1 })
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [search])
 
-  useEffect(() => {
-    const id = setInterval(() => fetchOrders(true), 15000)
-    return () => clearInterval(id)
-  }, [fetchOrders])
-
-  async function deleteAllOrders() {
-    if (!confirm("Tem certeza que deseja apagar TODOS os pedidos? Esta ação não pode ser desfeita.")) return
-    setDeletingAll(true)
-    try {
-      const res = await fetch("/api/orders", { method: "DELETE" })
-      if (!res.ok) throw new Error("Erro ao apagar pedidos")
-      setOrders([])
-      setDetailOrder(null)
-    } catch {
-      alert("Erro ao apagar pedidos")
-    } finally {
-      setDeletingAll(false)
-    }
+  function resetFilters() {
+    setSearch("")
+    setFilters({ status: "", date: "todos", search: "", page: 1 })
   }
 
-  async function deleteOrder(orderId: string) {
-    if (!confirm("Tem certeza que deseja remover este pedido? Esta ação não pode ser desfeita.")) return
-    setDeletingId(orderId)
-    try {
-      const res = await fetch(`/api/orders/${orderId}`, { method: "DELETE" })
-      if (!res.ok) throw new Error("Erro ao remover")
-      setOrders((prev) => prev.filter((o) => o.id !== orderId))
-      if (detailOrder?.id === orderId) setDetailOrder(null)
-    } catch {
-      alert("Erro ao remover pedido")
-    } finally {
-      setDeletingId(null)
-    }
+  function requestConfirmation(value: OrderConfirmation) {
+    confirmationTrigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    setConfirmation(value)
   }
 
-  async function updateStatus(orderId: string, status: string) {
-    setUpdatingId(orderId)
-    try {
-      const res = await fetch(`/api/orders/${orderId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
-      })
-      if (!res.ok) throw new Error("Erro ao atualizar")
-      const updated = await res.json()
-      setOrders((prev) => prev.map((o) => (o.id === orderId ? updated : o)))
-      if (detailOrder?.id === orderId) setDetailOrder(updated)
-    } catch {
-      alert("Erro ao atualizar status")
-    } finally {
-      setUpdatingId(null)
-    }
+  function requestStatus(order: AdminOrder, status: string) {
+    if (status === order.status) return
+    if (status === "cancelado") requestConfirmation({ action: "cancel", order })
+    else void changeStatus(order, status)
   }
 
-  function formatDate(dateStr: string) {
-    const d = new Date(dateStr)
-    return d.toLocaleDateString("pt-BR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    })
+  async function confirmAction() {
+    if (!confirmation) return
+    const succeeded = confirmation.action === "delete-all" ? await removeAll()
+      : confirmation.action === "cancel" ? await changeStatus(confirmation.order, "cancelado")
+      : await remove(confirmation.order)
+    if (succeeded) setConfirmation(null)
   }
+
+  function returnConfirmationFocus() {
+    const trigger = confirmationTrigger.current
+    if (trigger?.isConnected) trigger.focus()
+    else (document.getElementById("detail-status") ?? document.getElementById("orders-search"))?.focus()
+  }
+
+  const overview = [
+    { status: "recebido", label: "Recebidos", detail: "Aguardando confirmação", icon: ShoppingBag, color: "text-amber-300 bg-amber-400/10" },
+    { status: "preparando", label: "Em preparação", detail: "Na cozinha", icon: Clock3, color: "text-violet-300 bg-violet-400/10" },
+    { status: "entrega", label: "Em entrega", detail: "A caminho do cliente", icon: Truck, color: "text-sky-300 bg-sky-400/10" },
+    { status: "entregue", label: "Entregues", detail: "Pedidos concluídos", icon: CheckCheck, color: "text-emerald-300 bg-emerald-400/10" },
+  ]
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="orders-section flex min-w-0 flex-col gap-6">
+      <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
-          <h2 className="font-display text-2xl font-bold">Pedidos</h2>
-          <p className="text-sm text-muted-foreground mt-1">Gerencie os pedidos recebidos</p>
+          <p className="mb-2 flex items-center gap-2 text-xs font-medium text-muted-foreground"><span className="h-1.5 w-1.5 rounded-full bg-primary" />OPERAÇÃO DA LOJA</p>
+          <h1 id="orders-heading" tabIndex={-1} className="font-display text-3xl font-bold tracking-tight sm:text-4xl">Pedidos<span className="text-primary">.</span></h1>
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">Do recebimento à entrega, acompanhe cada etapa.</p>
         </div>
-        <div className="flex flex-col gap-2 w-full sm:flex-row sm:flex-wrap">
-          <button
-            onClick={fetchOrders}
-            disabled={loading}
-            className="flex items-center justify-center gap-2 rounded-xl border border-border px-4 py-2.5 text-sm font-medium hover:bg-secondary transition-colors disabled:opacity-50 w-full sm:w-auto"
-          >
-            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-            Atualizar
-          </button>
-          <button
-            onClick={deleteAllOrders}
-            disabled={loading || orders.length === 0 || deletingAll}
-            className="flex items-center justify-center gap-2 rounded-xl border border-destructive/50 px-4 py-2.5 text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto"
-            title="Apagar todos os pedidos"
-          >
-            <Trash className={`h-4 w-4 ${deletingAll ? "animate-pulse" : ""}`} />
-            {deletingAll ? "Apagando..." : "Apagar todos"}
-          </button>
+        <div className="flex shrink-0 items-center gap-2">
+          <button onClick={refresh} disabled={refreshing || disabled} className="orders-button inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 text-xs font-semibold disabled:opacity-50"><RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />{refreshing ? "Atualizando…" : "Atualizar"}</button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild><button aria-label="Ações do histórico de pedidos" disabled={disabled || !result} className="orders-button flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-card disabled:opacity-50"><MoreHorizontal className="h-4 w-4" /></button></DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="admin-orders-dialog rounded-xl bg-card p-1.5"><DropdownMenuItem disabled={!result?.globalTotal} onSelect={() => requestConfirmation({ action: "delete-all" })} className="min-h-11 gap-2 rounded-lg text-xs text-rose-300 focus:bg-rose-400/10 focus:text-rose-300"><Trash2 className="h-4 w-4" />Excluir todo o histórico</DropdownMenuItem></DropdownMenuContent>
+          </DropdownMenu>
         </div>
+      </header>
+
+      {error && <div role="alert" className="flex flex-wrap items-center gap-3 rounded-xl border border-amber-400/20 bg-amber-400/5 p-4 text-sm"><CircleAlert className="h-5 w-5 shrink-0 text-amber-300" /><p className="min-w-0 flex-1 text-amber-100">{result ? "Não foi possível atualizar. Os últimos pedidos carregados continuam visíveis." : "Não foi possível carregar os pedidos. Tente novamente."}</p><button onClick={refresh} disabled={refreshing || disabled} className="min-h-11 text-xs font-semibold text-amber-300 underline underline-offset-4 disabled:opacity-50">Tentar novamente</button></div>}
+
+      <div>
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4" aria-busy={loading}>
+          {overview.map((card) => <button key={card.status} disabled={disabled} aria-pressed={filters.status === card.status} onClick={() => setFilters((previous) => ({ ...previous, status: previous.status === card.status ? "" : card.status, page: 1 }))}
+            className={`dashboard-panel flex min-w-0 flex-col rounded-2xl border bg-card p-4 text-left transition-colors hover:border-primary/30 disabled:opacity-50 sm:p-5 ${filters.status === card.status ? "border-primary/40" : "border-border"}`}>
+            <div className="mb-4 flex w-full items-center justify-between"><span className={`flex h-9 w-9 items-center justify-center rounded-xl ${card.color}`}><card.icon className="h-4 w-4" /></span><span className="font-display text-2xl font-semibold tabular-nums">{loading ? <span className="block h-7 w-8 animate-pulse rounded bg-secondary" /> : result ? counts[card.status] ?? 0 : "—"}</span></div>
+            <span className="text-xs font-semibold">{card.label}</span><span className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{card.detail}</span>
+          </button>)}
+        </div>
+        <p className="mt-2 text-[10px] text-muted-foreground">Contadores consideram o período e a busca atuais, em todas as páginas.</p>
       </div>
 
-      {/* Filtros */}
-      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="w-full sm:flex-1 sm:min-w-[160px] rounded-lg border border-border bg-card px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-        >
-          <option value="">Todos os status</option>
-          {STATUS_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-        <select
-          value={dateFilter}
-          onChange={(e) => setDateFilter(e.target.value)}
-          className="w-full sm:flex-1 sm:min-w-[160px] rounded-lg border border-border bg-card px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-        >
-          <option value="hoje">Hoje</option>
-          <option value="semana">Esta semana</option>
-          <option value="todos">Todos</option>
-        </select>
-      </div>
-
-      {/* Lista de pedidos */}
-      {loading ? (
-        <div className="flex justify-center py-12">
-          <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+      <section aria-label="Lista e filtros de pedidos" className="min-w-0">
+        <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+          <div className="grid items-end gap-3 sm:grid-cols-[minmax(0,1fr)_200px_auto]">
+            <div><label htmlFor="orders-search" className="mb-2 block text-[11px] font-medium text-muted-foreground">Buscar pedido</label><div className="relative"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><input id="orders-search" type="search" value={search} disabled={disabled} maxLength={100} onChange={(event) => setSearch(event.target.value)} placeholder="Cliente, telefone, código ou bairro" className="min-h-11 w-full min-w-0 rounded-xl border border-border bg-background py-2 pl-10 pr-3 text-xs placeholder:text-muted-foreground disabled:opacity-50" /></div></div>
+            <div><label htmlFor="orders-period" className="mb-2 block text-[11px] font-medium text-muted-foreground">Período</label><select id="orders-period" value={filters.date} disabled={disabled} onChange={(event) => setFilters((previous) => ({ ...previous, date: event.target.value, page: 1 }))} className="min-h-11 w-full rounded-xl border border-border bg-background px-3 text-xs disabled:opacity-50">{PERIODS.map((period) => <option key={period.value} value={period.value}>{period.label}</option>)}</select></div>
+            <button aria-label="Limpar filtros" title="Limpar filtros" disabled={!filtered || disabled} onClick={resetFilters} className="orders-button flex h-11 items-center justify-center gap-2 rounded-xl border border-border px-3 text-xs disabled:opacity-30 sm:w-11 sm:px-0"><X className="h-4 w-4" /><span className="sm:hidden">Limpar filtros</span></button>
+          </div>
+          <div className="mt-5 flex flex-wrap gap-2 border-t border-border pt-4" role="group" aria-label="Filtrar pela situação">
+            {[{ value: "", label: "Todos" }, ...ORDER_STATUSES].map((status) => <button key={status.value} disabled={disabled} aria-pressed={filters.status === status.value} onClick={() => setFilters((previous) => ({ ...previous, status: status.value, page: 1 }))}
+              className={`inline-flex min-h-10 items-center gap-2 rounded-lg border px-3 text-[11px] font-medium transition-colors disabled:opacity-50 ${filters.status === status.value ? "border-primary/20 bg-primary/10 text-primary" : "border-transparent bg-secondary/40 text-muted-foreground hover:text-foreground"}`}>
+              {status.label}<span className={`rounded px-1.5 py-0.5 text-[10px] tabular-nums ${filters.status === status.value ? "bg-primary/10" : "bg-background/50"}`}>{result ? status.value ? counts[status.value] ?? 0 : result.summary.total : "—"}</span>
+            </button>)}
+          </div>
         </div>
-      ) : orders.length === 0 ? (
-        <div className="rounded-2xl border border-border bg-card p-12 text-center">
-          <ShoppingBag className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-          <p className="text-muted-foreground">Nenhum pedido encontrado</p>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-4">
-          {orders.map((order) => (
-            <motion.div
-              key={order.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="rounded-2xl border border-border bg-card p-4"
-            >
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-start justify-between gap-3">
-                    <h3 className="font-semibold text-sm break-words">{order.name}</h3>
-                    <span
-                      className={`inline-flex flex-shrink-0 items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                        order.status === "recebido"
-                          ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
-                          : order.status === "entregue" || order.status === "cancelado"
-                            ? "bg-muted text-muted-foreground"
-                            : "bg-primary/15 text-primary"
-                      }`}
-                    >
-                      {STATUS_LABELS[order.status] || order.status}
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    {order.items.length} itens • R$ {order.total.toFixed(2).replace(".", ",")}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">{formatDate(order.createdAt)}</p>
-                </div>
 
-                <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:flex-shrink-0">
-                  <select
-                    value={order.status}
-                    onChange={(e) => updateStatus(order.id, e.target.value)}
-                    disabled={updatingId === order.id}
-                    className="w-full lg:w-auto lg:min-w-[140px] rounded-lg border border-border bg-card px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
-                  >
-                    {STATUS_OPTIONS.map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="grid grid-cols-3 gap-2 lg:flex lg:items-center">
-                    <button
-                      onClick={() => printOrderThermal(order, store.name)}
-                      className="rounded-lg border border-border px-2 py-2.5 text-xs sm:text-sm font-medium hover:bg-secondary transition-colors flex items-center justify-center gap-1.5 lg:px-3"
-                      title="Imprimir em impressora térmica 88mm"
-                    >
-                      <Printer className="h-4 w-4 flex-shrink-0" />
-                      <span className="hidden sm:inline">Imprimir</span>
-                    </button>
-                    <button
-                      onClick={() => setDetailOrder(order)}
-                      className="rounded-lg border border-border px-2 py-2.5 text-xs sm:text-sm font-medium hover:bg-secondary transition-colors"
-                    >
-                      Detalhes
-                    </button>
-                    <button
-                      onClick={() => deleteOrder(order.id)}
-                      disabled={deletingId === order.id}
-                      className="rounded-lg border border-destructive/50 px-2 py-2.5 text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50 flex items-center justify-center"
-                      title="Remover pedido"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          ))}
+        <div className="my-4 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold">{filters.status ? ORDER_STATUSES.find((status) => status.value === filters.status)?.label : "Todos os pedidos"} <span className="ml-1 text-xs font-normal text-muted-foreground">{result ? `(${result.total})` : ""}</span></h2>
+          <span title="Total do período e da busca, em todas as situações, excluindo cancelados." className="text-[11px] text-muted-foreground">{result ? `Vendas: ${orderMoney(result.summary.revenue)}` : "Carregando histórico…"}</span>
         </div>
-      )}
 
-      {/* Modal de detalhes */}
-      <AnimatePresence>
-        {detailOrder && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setDetailOrder(null)}
-              className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="modal-panel bg-card"
-            >
-              <div className="flex items-center justify-between p-4 border-b border-border sticky top-0 bg-card z-10">
-                <h3 className="font-display text-lg font-bold">Pedido #{detailOrder.id.slice(-6)}</h3>
-                <button
-                  onClick={() => setDetailOrder(null)}
-                  className="p-2 rounded-lg hover:bg-secondary transition-colors"
-                  aria-label="Fechar"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-              <div className="p-4 flex flex-col gap-4">
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                      detailOrder.status === "recebido"
-                        ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
-                        : "bg-primary/15 text-primary"
-                    }`}
-                  >
-                    {STATUS_LABELS[detailOrder.status] || detailOrder.status}
-                  </span>
-                  <span className="text-xs text-muted-foreground">{formatDate(detailOrder.createdAt)}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Phone className="h-4 w-4 text-muted-foreground" />
-                  <a href={`tel:${detailOrder.phone}`} className="text-sm hover:underline">
-                    {detailOrder.phone}
-                  </a>
-                </div>
-                <div className="flex items-start gap-2">
-                  <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
-                  <div className="text-sm">
-                    <p>
-                      {detailOrder.address}, {detailOrder.neighborhood}
-                    </p>
-                    {detailOrder.complement && (
-                      <p className="text-muted-foreground">{detailOrder.complement}</p>
-                    )}
-                  </div>
-                </div>
-                <div>
-                  <h4 className="font-semibold text-sm mb-2">Itens</h4>
-                  <ul className="space-y-1">
-                    {detailOrder.items.map((item) => (
-                      <li key={item.id} className="text-sm flex justify-between">
-                        <span>
-                          {item.quantity}x {item.name}
-                          {item.variantName && ` (${item.variantName})`}
-                        </span>
-                        <span>R$ {(item.price * item.quantity).toFixed(2).replace(".", ",")}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-                <div className="border-t border-border pt-4 space-y-1 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Subtotal</span>
-                    <span>R$ {detailOrder.subtotal.toFixed(2).replace(".", ",")}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Entrega</span>
-                    <span>R$ {detailOrder.deliveryFee.toFixed(2).replace(".", ",")}</span>
-                  </div>
-                  <div className="flex justify-between font-bold text-base pt-2">
-                    <span>Total</span>
-                    <span className="text-primary">R$ {detailOrder.total.toFixed(2).replace(".", ",")}</span>
-                  </div>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  Pagamento: {detailOrder.paymentMethod}
-                  {detailOrder.changeFor && ` • Troco para: R$ ${detailOrder.changeFor}`}
-                </p>
-                <button
-                  onClick={() => printOrderThermal(detailOrder, store.name)}
-                  className="flex items-center justify-center gap-2 rounded-xl bg-primary py-3 text-sm font-bold text-primary-foreground hover:bg-primary/90 transition-colors"
-                  title="Imprimir em impressora térmica 88mm"
-                >
-                  <Printer className="h-4 w-4" />
-                  Imprimir pedido (88mm)
-                </button>
-                <select
-                  value={detailOrder.status}
-                  onChange={(e) => updateStatus(detailOrder.id, e.target.value)}
-                  disabled={updatingId === detailOrder.id}
-                  className="rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-                >
-                  {STATUS_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  onClick={() => deleteOrder(detailOrder.id)}
-                  disabled={deletingId === detailOrder.id}
-                  className="flex items-center justify-center gap-2 rounded-xl border border-destructive/50 py-3 text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
-                >
-                  <Trash2 className="h-4 w-4" />
-                  Remover pedido
-                </button>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+        {loading ? <div role="status" aria-label="Carregando pedidos" className="flex flex-col gap-3">{[1, 2, 3, 4].map((item) => <div key={item} className="h-28 animate-pulse rounded-2xl border border-border bg-card p-5"><div className="h-4 w-1/3 rounded bg-secondary" /><div className="mt-3 h-3 w-1/2 rounded bg-secondary" /><div className="mt-3 h-3 w-1/4 rounded bg-secondary" /></div>)}</div>
+          : !result || !result.orders.length ? <div className="rounded-2xl border border-dashed border-border bg-card/50 px-5 py-16 text-center"><span className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-secondary">{error ? <CircleAlert className="h-6 w-6 text-muted-foreground" /> : filtered ? <Filter className="h-6 w-6 text-muted-foreground" /> : <ShoppingBag className="h-6 w-6 text-muted-foreground" />}</span><h3 className="text-base font-semibold">{error ? "Histórico indisponível" : filtered ? "Nenhum pedido encontrado" : "Seus pedidos aparecerão aqui"}</h3><p className="mx-auto mt-2 max-w-sm text-xs leading-relaxed text-muted-foreground">{error ? "Tente carregar novamente para continuar." : filtered ? "Não há pedidos que correspondam à busca e aos filtros selecionados." : "Acompanhe o recebimento, o preparo e a entrega quando chegar o primeiro pedido."}</p>{filtered && !error && <button onClick={resetFilters} className="mt-5 min-h-11 rounded-xl bg-primary px-5 text-xs font-semibold text-primary-foreground">Limpar filtros</button>}</div>
+          : <div className="grid gap-3 md:grid-cols-2 xl:block xl:overflow-hidden xl:rounded-2xl xl:border xl:border-border">
+            <div className="hidden grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_100px_155px_135px] gap-4 border-b border-border bg-secondary/30 px-5 py-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground xl:grid"><span>Pedido / cliente</span><span>Itens / entrega</span><span>Total</span><span>Situação</span><span>Ações</span></div>
+            {result.orders.map((order) => <OrderCard key={order.id} order={order} disabled={disabled}
+              onDetails={(value, trigger) => { detailTrigger.current = trigger; setSelected(value) }}
+              onStatus={requestStatus} onPrint={(value) => printOrderThermal(value, store.name)} onDelete={(value) => requestConfirmation({ action: "delete", order: value })} />)}
+          </div>}
+
+        {result && result.total > 0 && <nav aria-label="Paginação dos pedidos" className="mt-5 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-[11px] text-muted-foreground">Mostrando {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, result.total)} de {result.total} pedidos</p>
+          <div className="flex items-center gap-2"><button disabled={page <= 1 || disabled || refreshing} onClick={() => setFilters((previous) => ({ ...previous, page: page - 1 }))} aria-label="Página anterior" className="orders-button flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-card disabled:opacity-30"><ChevronLeft className="h-4 w-4" /></button><span className="px-2 text-xs text-muted-foreground">Página <strong className="font-semibold text-foreground">{page}</strong> de {totalPages}</span><button disabled={page >= totalPages || disabled || refreshing} onClick={() => setFilters((previous) => ({ ...previous, page: page + 1 }))} aria-label="Próxima página" className="orders-button flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-card disabled:opacity-30"><ChevronRight className="h-4 w-4" /></button></div>
+        </nav>}
+      </section>
+
+      <footer className="flex flex-wrap justify-between gap-2 border-t border-border pt-4 text-[10px] text-muted-foreground"><span>Vendas incluem entrega e excluem pedidos cancelados.</span><span role="status" className="inline-flex items-center gap-1.5"><span className={`h-1.5 w-1.5 rounded-full ${error ? "bg-amber-400" : refreshing ? "bg-primary" : "bg-emerald-400"}`} />{error ? "Falha na atualização" : refreshing ? "Atualizando pedidos…" : "Atualização automática a cada 15 s"}</span></footer>
+
+      <OrderDetailsDialog order={selected} busy={disabled} onClose={() => setSelected(null)}
+        onReturnFocus={() => { if (detailTrigger.current?.isConnected) detailTrigger.current.focus(); else document.getElementById("orders-search")?.focus() }}
+        onStatus={requestStatus} onPrint={(order) => printOrderThermal(order, store.name)} onDelete={(order) => requestConfirmation({ action: "delete", order })} />
+      <OrderConfirmationDialog confirmation={confirmation} busy={disabled} total={result?.globalTotal ?? 0}
+        onClose={() => setConfirmation(null)} onConfirm={() => void confirmAction()} onReturnFocus={returnConfirmationFocus} />
     </div>
   )
 }

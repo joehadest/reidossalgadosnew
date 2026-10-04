@@ -1,3 +1,10 @@
+import { STORE_TIME_ZONE } from "./admin-dashboard"
+
+export function escapePrintText(value: string): string {
+  const characters: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }
+  return value.replace(/[&<>"']/g, (character) => characters[character])
+}
+
 interface OrderItem {
   name: string
   variantName: string | null
@@ -25,6 +32,7 @@ interface Order {
 function formatDate(dateStr: string): string {
   const d = new Date(dateStr)
   return d.toLocaleDateString("pt-BR", {
+    timeZone: STORE_TIME_ZONE,
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -37,7 +45,7 @@ export function printOrderThermal(order: Order, storeName?: string) {
   const itemsRows = order.items
     .map(
       (i) =>
-        `<tr><td class="item-desc">${i.quantity}x ${i.name}${i.variantName ? ` (${i.variantName})` : ""}</td><td class="item-val">R$ ${(i.price * i.quantity).toFixed(2).replace(".", ",")}</td></tr>`
+        `<tr><td class="item-desc">${i.quantity}x ${escapePrintText(i.name)}${i.variantName ? ` (${escapePrintText(i.variantName)})` : ""}</td><td class="item-val">R$ ${(i.price * i.quantity).toFixed(2).replace(".", ",")}</td></tr>`
     )
     .join("")
 
@@ -49,7 +57,7 @@ export function printOrderThermal(order: Order, storeName?: string) {
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Pedido #${order.id.slice(-6)}</title>
+  <title>Pedido #${escapePrintText(order.id.slice(-6))}</title>
   <style>
     @media print {
       @page { size: 88mm auto; margin: 0; }
@@ -88,17 +96,17 @@ export function printOrderThermal(order: Order, storeName?: string) {
   </style>
 </head>
 <body>
-  <div class="center store-name">${(storeName || "PEDIDO").toUpperCase()}</div>
+  <div class="center store-name">${escapePrintText((storeName || "PEDIDO").toUpperCase())}</div>
   <div class="center text-small">${formatDate(order.createdAt)}</div>
   <div class="hr"></div>
 
   <div class="section-label center">Cliente</div>
-  <div class="center text">${order.name}</div>
-  <div class="center text-small">${order.phone}</div>
+  <div class="center text">${escapePrintText(order.name)}</div>
+  <div class="center text-small">${escapePrintText(order.phone)}</div>
   <div class="hr-light"></div>
 
   <div class="section-label center">Endereço</div>
-  <div class="center text-small">${addressLine}</div>
+  <div class="center text-small">${escapePrintText(addressLine)}</div>
   <div class="hr"></div>
 
   <div class="section-label center">Itens do Pedido</div>
@@ -112,10 +120,10 @@ export function printOrderThermal(order: Order, storeName?: string) {
   <div class="total-box center">TOTAL R$ ${order.total.toFixed(2).replace(".", ",")}</div>
 
   <div class="section-label center">Pagamento</div>
-  <div class="center text">${paymentLine}</div>
+  <div class="center text">${escapePrintText(paymentLine)}</div>
 
   <div class="hr"></div>
-  <div class="center order-id">#${order.id.slice(-6)}</div>
+  <div class="center order-id">#${escapePrintText(order.id.slice(-6))}</div>
 </body>
 </html>
 `
