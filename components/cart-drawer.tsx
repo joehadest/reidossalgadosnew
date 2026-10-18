@@ -41,7 +41,7 @@ export function CartDrawer({ isOpen, onClose, onCheckout }: CartDrawerProps) {
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ type: "spring", damping: 30, stiffness: 300 }}
-            className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-md bg-background border-l border-border flex flex-col"
+            className="fixed right-0 top-0 z-50 h-dvh w-full max-w-md bg-background border-l border-border flex flex-col"
           >
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-border">
@@ -64,7 +64,7 @@ export function CartDrawer({ isOpen, onClose, onCheckout }: CartDrawerProps) {
             </div>
 
             {/* Items */}
-            <div className="flex-1 overflow-y-auto p-4">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
               {items.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full gap-4 text-center">
                   <div className="h-16 w-16 rounded-2xl bg-secondary flex items-center justify-center">
@@ -93,9 +93,9 @@ export function CartDrawer({ isOpen, onClose, onCheckout }: CartDrawerProps) {
                         <div className="flex flex-1 flex-col justify-between min-w-0">
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0">
-                              <h3 className="text-sm font-semibold leading-tight truncate">{item.name}</h3>
+                              <h3 className="break-words text-sm font-semibold leading-snug">{item.name}</h3>
                               {item.variantName && (
-                                <p className="text-xs text-muted-foreground truncate">{item.variantName}</p>
+                                <p className="mt-1 break-words text-xs leading-relaxed text-muted-foreground">{item.variantName}</p>
                               )}
                             </div>
                             <button
@@ -106,7 +106,7 @@ export function CartDrawer({ isOpen, onClose, onCheckout }: CartDrawerProps) {
                               <Trash2 className="h-3.5 w-3.5" />
                             </button>
                           </div>
-                          <div className="flex items-center justify-between">
+                          <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
                             <span className="text-sm font-bold text-primary">
                               R$ {(item.price * item.quantity).toFixed(2).replace(".", ",")}
                             </span>
@@ -145,7 +145,7 @@ export function CartDrawer({ isOpen, onClose, onCheckout }: CartDrawerProps) {
 
             {/* Footer */}
             {items.length > 0 && (
-              <div className="border-t border-border p-4 flex flex-col gap-4">
+              <div className="max-h-[65dvh] shrink-0 overflow-y-auto overscroll-contain border-t border-border p-4 pb-[max(1rem,env(safe-area-inset-bottom))] flex flex-col gap-4">
                 {!isStoreOpen && (
                   <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-center">
                     <p className="text-sm font-medium text-amber-600 dark:text-amber-400">Estamos fechados no momento</p>
@@ -158,7 +158,7 @@ export function CartDrawer({ isOpen, onClose, onCheckout }: CartDrawerProps) {
                   <select
                     value={selectedNeighborhood}
                     onChange={(e) => setSelectedNeighborhood(e.target.value)}
-                    className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    className="min-h-11 w-full rounded-lg border border-border bg-card px-3 py-2 text-base text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                     aria-label="Selecione o bairro"
                   >
                     <option value="">Selecione o bairro</option>

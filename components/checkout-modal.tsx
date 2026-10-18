@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import {
   X,
@@ -31,7 +31,7 @@ const paymentIcons: Record<string, React.ReactNode> = {
 }
 
 export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
-  const { items, totalPrice, clearCart } = useCart()
+  const { items, totalPrice, totalItems, clearCart } = useCart()
   const { store } = useAdmin()
   const [step, setStep] = useState<Step>("info")
   const [formData, setFormData] = useState({
@@ -46,6 +46,31 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
   const [pixCopied, setPixCopied] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [whatsappUrl, setWhatsappUrl] = useState<string | null>(null)
+  const viewportRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!isOpen) return
+
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+    const viewport = window.visualViewport
+
+    function updateViewport() {
+      if (!viewport || !viewportRef.current) return
+      viewportRef.current.style.height = `${viewport.height}px`
+      viewportRef.current.style.top = `${viewport.offsetTop}px`
+    }
+
+    updateViewport()
+    viewport?.addEventListener("resize", updateViewport)
+    viewport?.addEventListener("scroll", updateViewport)
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+      viewport?.removeEventListener("resize", updateViewport)
+      viewport?.removeEventListener("scroll", updateViewport)
+    }
+  }, [isOpen])
 
   const deliveryFee =
     store.deliveryFees.find((f) => f.neighborhood === formData.neighborhood)?.fee || 0
@@ -96,13 +121,38 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
       setSubmitting(false)
     }
 
+    const money = (value: number) => `R$ ${value.toFixed(2).replace(".", ",")}`
     const itemsList = items
-      .map((i) => {
-        const label = i.variantName ? `${i.name} (${i.variantName})` : i.name
-        return `${i.quantity}x ${label} - R$ ${(i.price * i.quantity).toFixed(2).replace(".", ",")}`
-      })
-      .join("\n")
-    const message = `*Novo Pedido - ${store.name}*\n\n*Cliente:* ${formData.name}\n*Telefone:* ${formData.phone}\n*Endereco:* ${formData.address}, ${formData.neighborhood}${formData.complement ? ` - ${formData.complement}` : ""}\n\n*Itens:*\n${itemsList}\n\n*Subtotal:* R$ ${totalPrice.toFixed(2).replace(".", ",")}\n*Entrega:* R$ ${deliveryFee.toFixed(2).replace(".", ",")}\n*Total:* R$ ${finalTotal.toFixed(2).replace(".", ",")}\n\n*Pagamento:* ${formData.paymentMethod}${paymentKind(formData.paymentMethod) === "cash" && formData.change ? `\n*Troco para:* R$ ${formData.change}` : ""}`
+      .map((item) => [
+        `• *${item.quantity}x ${item.name}*`,
+        ...(item.variantName ? [`  Opção: ${item.variantName}`] : []),
+        `  Total do item: ${money(item.price * item.quantity)}`,
+      ].join("\n"))
+      .join("\n\n")
+    const message = [
+      `*Novo pedido — ${store.name}*`,
+      ["*CLIENTE*", `Nome: ${formData.name}`, `Telefone: ${formData.phone}`].join("\n"),
+      [
+        "*ENTREGA*",
+        `Endereço: ${formData.address}`,
+        `Bairro: ${formData.neighborhood}`,
+        ...(formData.complement.trim() ? [`Complemento: ${formData.complement.trim()}`] : []),
+      ].join("\n"),
+      `*ITENS DO PEDIDO*\n\n${itemsList}`,
+      [
+        "*RESUMO*",
+        `Subtotal: ${money(totalPrice)}`,
+        `Taxa de entrega: ${money(deliveryFee)}`,
+        `*Total: ${money(finalTotal)}*`,
+      ].join("\n"),
+      [
+        "*PAGAMENTO*",
+        formData.paymentMethod,
+        ...(paymentKind(formData.paymentMethod) === "cash" && formData.change.trim()
+          ? [`Troco para: R$ ${formData.change.trim()}`]
+          : []),
+      ].join("\n"),
+    ].join("\n\n")
 
     const encoded = encodeURIComponent(message)
     const url = `https://wa.me/${store.whatsapp}?text=${encoded}`
@@ -154,22 +204,26 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
             aria-hidden
           />
 
+          <div ref={viewportRef} className="checkout-viewport">
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className="modal-panel"
+            className="checkout-panel"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="checkout-title"
           >
             {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-border sticky top-0 bg-background z-10">
+            <div className="flex shrink-0 items-center justify-between p-4 border-b border-border sticky top-0 bg-background z-10">
               <div className="flex items-center gap-2">
                 {step === "payment" && (
                   <button onClick={() => setStep("info")} className="p-1 rounded hover:bg-secondary transition-colors">
                     <ArrowLeft className="h-4 w-4" />
                   </button>
                 )}
-                <h2 className="font-display text-lg font-bold">
+                <h2 id="checkout-title" className="font-display text-lg font-bold">
                   {step === "info" && "Dados da Entrega"}
                   {step === "payment" && "Pagamento"}
                   {step === "confirmation" && "Pedido Enviado"}
@@ -181,7 +235,7 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
             </div>
 
             {/* Steps indicator */}
-            <div className="px-4 pt-4">
+            <div className="shrink-0 px-4 pt-4">
               <div className="flex items-center gap-2">
                 {["info", "payment", "confirmation"].map((s, i) => (
                   <div key={s} className="flex items-center gap-2 flex-1">
@@ -207,45 +261,56 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                   className="flex flex-col gap-4"
                 >
                   <div>
-                    <label className="text-xs text-muted-foreground mb-1 block">Nome completo *</label>
+                    <label htmlFor="checkout-name" className="text-sm text-muted-foreground mb-1.5 block">Nome completo *</label>
                     <input
+                      id="checkout-name"
+                      name="name"
+                      autoComplete="name"
                       type="text"
                       required
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      className="w-full rounded-lg border border-border bg-card px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      className="w-full rounded-lg border border-border bg-card min-h-11 px-3 py-2.5 text-base text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                       placeholder="Seu nome"
                     />
                   </div>
                   <div>
-                    <label className="text-xs text-muted-foreground mb-1 block">Telefone *</label>
+                    <label htmlFor="checkout-phone" className="text-sm text-muted-foreground mb-1.5 block">Telefone *</label>
                     <input
+                      id="checkout-phone"
+                      name="phone"
+                      autoComplete="tel"
                       type="tel"
                       required
                       value={formData.phone}
                       onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                      className="w-full rounded-lg border border-border bg-card px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      className="w-full rounded-lg border border-border bg-card min-h-11 px-3 py-2.5 text-base text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                       placeholder="(84) 9 9999-9999"
                     />
                   </div>
                   <div>
-                    <label className="text-xs text-muted-foreground mb-1 block">Endereco *</label>
+                    <label htmlFor="checkout-address" className="text-sm text-muted-foreground mb-1.5 block">Endereço *</label>
                     <input
+                      id="checkout-address"
+                      name="address"
+                      autoComplete="street-address"
                       type="text"
                       required
                       value={formData.address}
                       onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                      className="w-full rounded-lg border border-border bg-card px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                      placeholder="Rua, numero"
+                      className="w-full rounded-lg border border-border bg-card min-h-11 px-3 py-2.5 text-base text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      placeholder="Rua, número"
                     />
                   </div>
                   <div>
-                    <label className="text-xs text-muted-foreground mb-1 block">Bairro *</label>
+                    <label htmlFor="checkout-neighborhood" className="text-sm text-muted-foreground mb-1.5 block">Bairro *</label>
                     <select
+                      id="checkout-neighborhood"
+                      name="neighborhood"
                       required
                       value={formData.neighborhood}
                       onChange={(e) => setFormData({ ...formData, neighborhood: e.target.value })}
-                      className="w-full rounded-lg border border-border bg-card px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      className="w-full rounded-lg border border-border bg-card min-h-11 px-3 py-2.5 text-base text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                     >
                       <option value="">Selecione o bairro</option>
                       {store.deliveryFees.map((f) => (
@@ -256,12 +321,14 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs text-muted-foreground mb-1 block">Complemento</label>
+                    <label htmlFor="checkout-complement" className="text-sm text-muted-foreground mb-1.5 block">Complemento</label>
                     <input
+                      id="checkout-complement"
+                      name="complement"
                       type="text"
                       value={formData.complement}
                       onChange={(e) => setFormData({ ...formData, complement: e.target.value })}
-                      className="w-full rounded-lg border border-border bg-card px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      className="w-full rounded-lg border border-border bg-card min-h-11 px-3 py-2.5 text-base text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                       placeholder="Apto, bloco, referencia..."
                     />
                   </div>
@@ -328,12 +395,14 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: "auto" }}
                     >
-                      <label className="text-xs text-muted-foreground mb-1 block">Troco para quanto?</label>
+                      <label htmlFor="checkout-change" className="text-sm text-muted-foreground mb-1.5 block">Troco para quanto?</label>
                       <input
+                        id="checkout-change"
+                        inputMode="decimal"
                         type="text"
                         value={formData.change}
                         onChange={(e) => setFormData({ ...formData, change: e.target.value })}
-                        className="w-full rounded-lg border border-border bg-card px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                        className="w-full rounded-lg border border-border bg-card min-h-11 px-3 py-2.5 text-base text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                         placeholder="Ex: 50,00"
                       />
                     </motion.div>
@@ -341,13 +410,16 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
 
                   {/* Summary */}
                   <div className="rounded-xl border border-border bg-card p-4 flex flex-col gap-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Subtotal ({items.length} itens)</span>
-                      <span>R$ {totalPrice.toFixed(2).replace(".", ",")}</span>
+                    <div className="flex justify-between gap-3">
+                      <span className="text-muted-foreground">Subtotal · {totalItems} {totalItems === 1 ? "item" : "itens"}</span>
+                      <span className="shrink-0">R$ {totalPrice.toFixed(2).replace(".", ",")}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Entrega ({formData.neighborhood})</span>
-                      <span>R$ {deliveryFee.toFixed(2).replace(".", ",")}</span>
+                    <div className="flex justify-between gap-3">
+                      <div className="min-w-0 text-muted-foreground">
+                        <span>Entrega</span>
+                        <p className="mt-0.5 break-words text-xs">{formData.neighborhood}</p>
+                      </div>
+                      <span className="shrink-0">R$ {deliveryFee.toFixed(2).replace(".", ",")}</span>
                     </div>
                     <div className="flex justify-between font-bold text-base pt-2 border-t border-border">
                       <span>Total</span>
@@ -427,6 +499,7 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
               )}
             </div>
           </motion.div>
+          </div>
         </>
       )}
     </AnimatePresence>

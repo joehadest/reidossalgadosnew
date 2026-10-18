@@ -199,6 +199,16 @@
     }
   }
 
+  .checkout-viewport {
+    @apply pointer-events-none fixed inset-x-0 top-0 z-50 flex h-dvh items-end sm:items-center sm:justify-center sm:p-4;
+  }
+
+  .checkout-panel {
+    @apply pointer-events-auto relative flex max-h-full w-full flex-col overflow-y-auto overscroll-contain rounded-t-2xl border border-border bg-background sm:max-w-lg sm:rounded-2xl;
+    padding-bottom: env(safe-area-inset-bottom);
+    scroll-padding: 5rem 0 1.5rem;
+  }
+
   .modal-panel {
     @apply fixed z-50 flex flex-col overflow-y-auto border border-border bg-background;
     @apply inset-x-0 bottom-0 max-h-[92dvh] w-full rounded-t-2xl;
